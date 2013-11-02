@@ -1,0 +1,1 @@
+"C:\Program Files\WinRAR\WinRAR.exe" a ../MicroW.zip src/* other/* MW.exe *.sln *.vcproj *.mid -r
