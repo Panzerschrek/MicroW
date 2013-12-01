@@ -126,18 +126,19 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/GS-  /QIfist"
+				AdditionalOptions="/GS-  /W3 /QIfist"
 				Optimization="3"
 				InlineFunctionExpansion="0"
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="2"
 				WholeProgramOptimization="true"
 				AdditionalIncludeDirectories="&quot;C:\SDK`s\DXSDK\include&quot;"
-				PreprocessorDefinitions="MW_OS_WINDOWS;MW_IA32_MASM;MW_DEBUG;_CRT_SECURE_NO_WARNINGS"
+				PreprocessorDefinitions="MW_OS_WINDOWS;MW_IA32_MASM;MW_DEBUG1;_CRT_SECURE_NO_WARNINGS"
 				StringPooling="true"
 				ExceptionHandling="0"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
+				FloatingPointModel="0"
 				RuntimeTypeInfo="false"
 				AssemblerOutput="4"
 				AssemblerListingLocation="objwin\$(IntDir)\"
@@ -164,6 +165,7 @@
 				GenerateManifest="false"
 				ManifestFile="objwin\$(IntDir)\$(TargetFileName).intermediate.manifest"
 				GenerateDebugInformation="false"
+				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				ProfileGuidedDatabase=""
@@ -267,6 +269,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\particle_manager.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\src\player.cpp"
 				>
 			</File>
@@ -360,6 +366,10 @@
 			</File>
 			<File
 				RelativePath=".\src\mw.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\particle_manager.h"
 				>
 			</File>
 			<File

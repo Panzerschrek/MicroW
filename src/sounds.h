@@ -15,5 +15,7 @@ extern unsigned int (*SoundGenFunc[])( short**);
 #define SOUND_SHOVEL_HIT 0
 #define SOUND_PISTOL_SHOT 1
 #define SOUND_BLASTER_SHOT 2
-#define SOUND_COUNT 3
+#define SOUND_ROCKET_SHOT 3
+#define SOUND_BLAST 4
+#define SOUND_COUNT 5
 #endif//SOUNDS_H

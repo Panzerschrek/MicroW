@@ -94,38 +94,135 @@ void Landscape::Smooth()
     heightmap= new_hm;
 }
 
+void Landscape::RegenHeightmap()
+{
+    Gen();
+    Smooth();
+    GenWay();
+}
+
 void Landscape::GenWay()
 {
+	//mountains
     for( unsigned int i= 0; i< size_x; i++ )
     {
         for( unsigned int j= 0; j< size_y; j++ )
+        {
             texture_map[ i + size_x * j ]= TEXTURE_GRASS;
+            float n[3];
+            Normal( float(i), float(j), n );
+            unsigned int h= heightmap[ i + j * size_x ];
+            unsigned short stone_level= 45874, snow_level= 47840;
+            if( h>= stone_level )
+            {
+                h+= ( h - stone_level );
+                if( h > 64435 )h= 65535;
+                free_space_map[ i + j * size_x]= false;
+                heightmap[ i + j * size_x ]= h;
+                if( h >= snow_level )
+                    texture_map[ i + j * size_x ]= TEXTURE_SNOW;
+                else
+                    texture_map[ i + j * size_x ]= TEXTURE_STONE;
 
+
+            }
+        }
     }
-    
-    /* for( unsigned int i= 16; i< size_x-16; i++ )
-    {
-        for( int j= -7; j< 7; j++ )
-            texture_map[ j+ i + i * size_x ] = TEXTURE_PAVING_STONE;
-       
 
-       
-         for( int j= -8; j< 8; j++ )
-         {
-            heightmap[ j + i + i * size_x ]&= 0xFF00;
-            heightmap[ j + i + i * size_x ]-= 256;
-            free_space_map[ j + i + i * size_x ]= false;
-         }
-        
+	//water
+	for( unsigned int j= 0; j< size_y; j++ )
+		for( unsigned int i= 0; i< size_x; i++ )
+		{
+			if( heightmap[ i + j*size_y ] < 65535*9/20 )
+            {
+                texture_map[ i + j * size_x ]= TEXTURE_SAND;
+                free_space_map[ i + j * size_x]= false;
+            }
+        }
+
+	//roads
+    /*static const int way_width= 3;
+    for( unsigned int i= 20; i< size_x-20; i++ )
+    {
+        float n[3];
+        Normal( float(i), 512.0f, n );
+        short dy= short( n[1] * 12.0f );
+        for( unsigned int j= 512-way_width; j< 512+way_width; j++ )
+        {
+			unsigned int k= i + (j+dy) * size_x;
+			if( free_space_map[k] )
+			{
+				texture_map[k]= TEXTURE_PAVING_STONE;
+				heightmap[k]&= 0xFFF0;
+				heightmap[k]+= 64;
+				//heightmap[k]= heightmap[i + 512 * size_x ];
+				free_space_map[k]= false;
+			}
+        }
+    }
+
+	for( unsigned int j= 20; j< size_x-20; j++ )
+    {
+        float n[3];
+        Normal( 512.0f, float(j), n );
+        short dx= short( n[0] * 12.0f );
+        for( unsigned int i= 512-way_width; i< 512+way_width; i++ )
+        {
+			unsigned int k= i + dx + j * size_x;
+			if( free_space_map[k] )
+			{
+				texture_map[k]= TEXTURE_PAVING_STONE;
+				heightmap[k]&= 0xFFF0;
+				heightmap[k]+= 64;
+				//heightmap[k]= heightmap[i + 512 * size_x ];
+				free_space_map[k]= false;
+			}
+        }
     }*/
-    for( int i= 512; i< 512+8; i++ )
+
+	//central square
+    const int central_square_width= 6;
+    for( unsigned int i= 512-central_square_width; i< 512+central_square_width; i++ )
+        for( unsigned int j= 512-central_square_width; j< 512+central_square_width; j++ )
+            texture_map[ i + j * size_x ]= TEXTURE_PAVING_STONE;
+    SetMaximumHeight( 512-central_square_width, 512-central_square_width, 512+central_square_width, 512+central_square_width );
+   
+  /*  for( int i= 512; i< 512+8; i++ )
         for( int j= 484; j< 484 + 8*TEXTURE_COUNT; j++ )
              texture_map[ i + j * size_x ] = (j-484)>>3;
-
+*/
  
 }
 
+void Landscape::GenShadowMap( const float* sun_vector )
+{
+    float sun[]= { sun_vector[0], sun_vector[1], sun_vector[2] };
+    Vec3Normalize( sun );
+    float xy_len= sqrt( sun[0]*sun[0] + sun[1] * sun[1] );
+    Vec3Mul( sun, 1.0f / xy_len );
 
+    float pos[3];
+    unsigned char in_shadow;
+    for( unsigned int j= 0; j< size_y; j++ )
+        for( unsigned int i= 0; i< size_x; i++ )
+        {
+            pos[0]= float(i);
+            pos[1]= float(j);
+            pos[2]= Height( pos[0], pos[1] ) + 0.05f;
+            in_shadow= 255;
+            while( pos[2] < amplitude )
+            {
+                Vec3Add( pos, sun );
+                if( pos[2] <= Height( pos[0], pos[1] ) )
+                {
+                    in_shadow= 0;
+                    break;
+                }
+            }
+            shadow_map[ i + j*size_x ]= in_shadow;
+
+        }
+}
 
 
 
@@ -138,6 +235,7 @@ Landscape::Landscape( unsigned int size_x, unsigned int size_y )
 	heightmap= new unsigned short[ size_x * size_y ];
     texture_map= new unsigned char[ size_x * size_y ];
     free_space_map= new bool[ size_x * size_y ];
+    shadow_map= new unsigned char [ size_x * size_x ];
 
 
     object_map= new StaticObject*[ size_x * size_y ];
@@ -224,24 +322,24 @@ bool Landscape::CanPlaceObject( unsigned int x0, unsigned int y0, unsigned int x
 
 float Landscape::Height( float x, float y )const
 {
-    if( x <= 0.0f || x>=float(size_x) || y <= 0.0f || y>=float(size_y) )
+    if( x <= 0.5f || x>=float(size_x-2) || y <= 0.5f || y>=float(size_y-2) )
         return 0.0f;
 
     unsigned int i_x, i_y;
-    i_x= int(x);
-    i_y= int(y);
-
+    i_x= (unsigned int)(x);
+    i_y= (unsigned int)(y);
+   // return amplitude * float(heightmap[ i_x + i_y * size_x ] ) / 65535.0f;
     float dx, dy;
     dx= x - float(i_x);
     dy= y - float(i_y);
 
     float interp_x[2]=
     {
-        dy * float(heightmap[ i_x + (i_y+1) * size_x  ]) + (1.0f - dy) * float(heightmap[ i_x + i_y * size_x  ]),
-        dy * float(heightmap[ i_x+1 + (i_y+1) * size_x  ]) + (1.0f - dy) * float(heightmap[ i_x+1 + i_y * size_x  ])
+        dy *float(heightmap[ i_x + (i_y+1) * size_x ]) + (1.0f - dy) *float(heightmap[ i_x + i_y * size_x ]),
+        dy *float(heightmap[ i_x+1 + (i_y+1) * size_x ]) + (1.0f - dy) *float(heightmap[ i_x+1 + i_y * size_x ])
     };
 
-      return amplitude * (interp_x[1] * dx + interp_x[0] * (1.0f - dx) ) / 65535.0f;
+      return amplitude * (interp_x[1] * dx + interp_x[0] * (1.0f - dx) )/65535.0f;
 }
 
 void Landscape::Normal( float x, float y, float* n )const
@@ -253,12 +351,12 @@ void Landscape::Normal( float x, float y, float* n )const
     i_x= int(x);
     i_y= int(y);
 
-    n[0]= float( heightmap[ i_x - 1 + i_y * size_x ] - heightmap[ i_x + 1 + i_y * size_y ] );
-    n[1]= float( heightmap[ i_x + (i_y-1) * size_x ] - heightmap[ i_x + (i_y+1) * size_y ] );
+    n[0]= float( heightmap[ i_x - 1 + i_y * size_x ] - heightmap[ i_x + 1 + i_y * size_x ] );
+    n[1]= float( heightmap[ i_x + (i_y-1) * size_x ] - heightmap[ i_x + (i_y+1) * size_x ] );
+    n[0]/=65535.0f;
+    n[1]/=65535.0f;
     
     n[2]= 1.0f / amplitude;
 
     Vec3Normalize(n);
-
-
 }

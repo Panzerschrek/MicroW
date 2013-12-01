@@ -8,7 +8,7 @@
 class Texture
 {
 public:
-    Texture(){}
+    Texture(){one_channel= false;}
     Texture( unsigned int log2_x, unsigned int log2_y );
     ~Texture(){delete[] data;}
 
@@ -29,6 +29,7 @@ public:
     void DrawText( short x, short y, unsigned int size, const unsigned char* color, const char* text );
 
     void Copy( Texture* t );
+    void Copy( const Texture* t, unsigned short width, unsigned short height, unsigned short src_x, unsigned short src_y, unsigned short dst_x, unsigned short dst_y );
     void AlphaBlend( const Texture* t );
     void Add( const Texture* t );
     void Sub( const Texture* t );
@@ -50,6 +51,8 @@ public:
     void UpScaleY();
     void DownScaleX();
     void DownScaleY();
+
+    void ToOneChannel( unsigned char channel );// convert texture from rgb to grayscale ( save one channel )
    
 
     void Move2GPU();
@@ -59,6 +62,7 @@ private:
     unsigned int size_x, size_y, size_x_log2, size_y_log2;
     static unsigned char default_clear_color[4];
     GLuint tex_id;
+    bool one_channel;
 
 
     unsigned char Noise2( int x,  int y, unsigned int mask );

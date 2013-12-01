@@ -74,18 +74,18 @@ void SoundSystem::GenSound( unsigned char sound_id )
 
     char* buff_data1, *buff_data2= NULL;
     unsigned int buff_size1, buff_size2= 0;
-    if( buffers[ sound_id ]->Lock( 0, sound_len * 2,
+    /*if(*/buffers[ sound_id ]->Lock( 0, sound_len * 2,
         (LPVOID*)&buff_data1, 
         (LPDWORD)&buff_size1,
         (LPVOID*)&buff_data2,
         (LPDWORD)&buff_size2,
-        0 ) != DS_OK )
-        printf( "bufer lock error\n" );
+        0 );// != DS_OK 
+      //  printf( "bufer lock error\n" );
 
     memcpy( buff_data1, sound_data, sound_len * 2 );
 
-    if( buffers[ sound_id ]->Unlock( buff_data1, buff_size1, NULL, 0 ) != DS_OK )
-        printf( "ds unlock error\n" );
+    /*if(*/ buffers[ sound_id ]->Unlock( buff_data1, buff_size1, NULL, 0 );// != DS_OK );
+       // printf( "ds unlock error\n" );
 #else
 #endif
 
@@ -110,36 +110,35 @@ void SoundSystem::Tick()
 
     unsigned int current_time= clock();
     float dt;
-    for( int i= 0; i< (int)current_sounds_count; i++ )
+    for( unsigned int i= 0; i< current_sounds_count; i++ )
     {
         dt= float( current_time - sounds_init_time[i] ) / float(CLOCKS_PER_SEC);
-        if( dt > sound_length[sound_parent[i]] )
+        if( dt >= sound_length[sound_parent[i]] )
         {
-            secondary_buffers[i]->Stop();
-            secondary_buffers3d[i]->Release();
+            secondary_buffers[i]->Stop();//crash in this point. Why?
+           // secondary_buffers3d[i]->Release();
             secondary_buffers[i]->Release();
-            current_sounds_count--;
         }
     }
 
-     for( int i= 0; i< (int)current_sounds_count; )
+     for( unsigned int i= 0; i< current_sounds_count; )
      {
         dt= float( current_time - sounds_init_time[i] ) / float(CLOCKS_PER_SEC);
-        if( dt > sound_length[sound_parent[i]] )
+        if( dt >= sound_length[sound_parent[i]] )
         {
-            if( i != current_sounds_count - 1 )
+            if( i < current_sounds_count - 1 )
             {
                 secondary_buffers[i]= secondary_buffers[ current_sounds_count - 1 ];
                 sounds_init_time[i]= sounds_init_time[ current_sounds_count - 1 ];
                 secondary_buffers3d[i]= secondary_buffers3d[ current_sounds_count - 1 ];
             }
-             current_sounds_count--;
+			current_sounds_count--;
         }
         else
             i++;
      }
     
-     listener->SetPosition( player_pos[0], player_pos[1], player_pos[2],DS3D_IMMEDIATE );
+     listener->SetPosition( player_pos[0], player_pos[1], player_pos[2], DS3D_IMMEDIATE );
 #else
 #endif
 }
@@ -150,24 +149,48 @@ void SoundSystem::PlaySound(const float *pos, float volume, unsigned char sound_
 #ifdef MW_OS_WINDOWS
 
     if( current_sounds_count >= MAX_PARALLEL_SOUNDS )
+    {
+#ifdef MW_DEBUG
+        printf( "error, too much sounds\n" );
+#endif
         return;
+    }
 
-    direct_sound->DuplicateSoundBuffer( buffers[ sound_id ], &secondary_buffers[current_sounds_count]  );
+    if( direct_sound->DuplicateSoundBuffer( buffers[ sound_id ], &secondary_buffers[current_sounds_count]  )
+        != DS_OK )
+    {
+#ifdef MW_DEBUG
+        printf( "sound error\n" );
+#endif
+        return;
+    }
     
-    secondary_buffers[current_sounds_count]->QueryInterface( IID_IDirectSound3DBuffer8, (LPVOID*) &secondary_buffers3d[current_sounds_count]  );
+    if( secondary_buffers[current_sounds_count]->QueryInterface( IID_IDirectSound3DBuffer8, (LPVOID*) &secondary_buffers3d[current_sounds_count]  ) != DS_OK )
+    {
+#ifdef MW_DEBUG
+        printf( "sound 3d error\n" );
+#endif
+        return ;
+    }
     sounds_init_time[current_sounds_count]= clock();
 
     sound_parent[current_sounds_count]= sound_id;
     secondary_buffers3d[current_sounds_count]->SetMaxDistance( 1000.0f, DS3D_IMMEDIATE );
     secondary_buffers3d[current_sounds_count]->SetMinDistance( 10.0f, DS3D_IMMEDIATE );
-     if( sound_from_player )
-     {
+    if( sound_from_player )
+    {
         secondary_buffers3d[current_sounds_count]->SetMode( DS3DMODE_HEADRELATIVE, DS3D_IMMEDIATE );
         secondary_buffers3d[current_sounds_count]->SetPosition( 0.0f, 0.0f, 0.0f, DS3D_IMMEDIATE );
-     }
-     else
-         secondary_buffers3d[current_sounds_count]->SetPosition( pos[0], pos[1], pos[2], DS3D_IMMEDIATE );
-    secondary_buffers[current_sounds_count]->Play( 0, 0, 0 );
+    }
+    else
+        secondary_buffers3d[current_sounds_count]->SetPosition( pos[0], pos[1], pos[2], DS3D_IMMEDIATE );
+    if( secondary_buffers[current_sounds_count]->Play( 0, 0, 0 ) != DS_OK )
+	{
+#ifdef MW_DEBUG
+		printf( "sound play error\n" );
+#endif
+		return;
+	}
     current_sounds_count++;
 #else
 #endif

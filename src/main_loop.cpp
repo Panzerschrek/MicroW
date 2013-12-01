@@ -4,7 +4,8 @@
 #include "math.h"
 
 MainLoop* MainLoop::current_main_loop= NULL;
-
+unsigned int MainLoop::current_time= 0;
+unsigned int MainLoop::prev_time= 0;
 
 inline void MainLoop::ResizeWindow()
 {
@@ -46,6 +47,15 @@ LRESULT CALLBACK MainLoop::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
             current_main_loop->keys[ wParam ]= false;
         break;
 
+    case WM_SETFOCUS:
+        current_main_loop->use_mouse= true;
+        ShowCursor( false );
+        break;
+    case WM_KILLFOCUS:
+        current_main_loop->use_mouse= false;
+        ShowCursor( true );
+        break;
+
     case WM_KEYDOWN:
     {
         if( wParam < 256 )
@@ -57,12 +67,12 @@ LRESULT CALLBACK MainLoop::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
             current_main_loop->player->Jump();
             break;
 
-            case KEY('M'):
+           /* case KEY('M'):
             ShowCursor( current_main_loop->use_mouse );
             current_main_loop->use_mouse = !current_main_loop->use_mouse;
-            break;
+            break;*/
 
-			case KEY('Q'):
+			case VK_ESCAPE:
 			exit(0);
             break;
 
@@ -82,6 +92,9 @@ LRESULT CALLBACK MainLoop::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
             break;
      case WM_LBUTTONUP://shot button
          current_main_loop->mouse_keys[0]= false;
+         break;
+     case WM_RBUTTONUP:
+         current_main_loop->renderer->Zoom();
          break;
 
         case WM_MOUSEWHEEL:
@@ -105,6 +118,7 @@ LRESULT CALLBACK MainLoop::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
 }
 
 #endif//win
+
 
 
 inline void MainLoop::InitOGL()
@@ -260,13 +274,19 @@ display_error:
     exit(1024);
 }
 
+
+void MainLoop::SwapBuffers()
+{
+    ::SwapBuffers( current_main_loop->hdc );
+}
+
 inline void MainLoop::SetupOGLState()
 {
     //gl state initialisation
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL );
     glClearDepth(1.0f);
-    glClearColor(0.019f, 0.654f, 0.811f, 0.0f );
+   // glClearColor(0.019f, 0.654f, 0.811f, 0.0f );
     glViewport(0, 0, screen_x, screen_y );
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 
@@ -274,13 +294,76 @@ inline void MainLoop::SetupOGLState()
     glEnable( GL_CULL_FACE );
 }
 
+char ToUpperCase( char c )
+{
+    if( c >= 'a' && c <= 'z' )
+        c-=32;
+    return c;
+}
+
+void MainLoop::LoadConfig()
+{   
+    FILE* f= fopen( "config.cfg", "rb" );
+    if( f == NULL )
+        return;
+
+    char str[64];
+    char str2[64];
+    while( fscanf( f, "%s", str ) > 0 )
+    {
+        fscanf( f, "%s", str2 );
+
+        if( !strcmp( str, "move_forward" ) )
+            key_forward= str2[0];
+        else if( !strcmp( str, "move_backpedal" ) )
+            key_back= str2[0];
+        else if( !strcmp( str, "move_left" ) )
+            key_left= str2[0];
+        else if( !strcmp( str, "move_right" ) )
+            key_right= str2[0];
+        else if( !strcmp( str, "screen_width" ) )
+        {
+            screen_x= atoi(str2);
+            if( screen_x > 2048 )
+                screen_x= 2048;
+        }
+        else if( !strcmp( str, "screen_height" ) )
+        {
+            screen_y= atoi(str2);
+            if( screen_y > 2048 )
+                screen_y= 2048;
+        }
+        else if( !strcmp( str, "mouse_speed" ) )
+        {
+            mouse_speed= float( atof(str2) ); 
+            if( mouse_speed < 1.0f )
+                mouse_speed= 1.0f;
+            else if( mouse_speed > 10.0f )
+                mouse_speed= 10.0f;
+        }
+    }
+    fclose(f);
+
+    key_forward= ToUpperCase(key_forward);
+    key_back= ToUpperCase(key_back);
+    key_left= ToUpperCase(key_left);
+    key_right= ToUpperCase(key_right);
+
+}
 
 MainLoop::MainLoop( Level* l, Player* p ):
     level(l), player(p), use_mouse(false), renderer(NULL), sound_system(NULL)
 {
 
+    key_forward= 'W';
+    key_back= 'S';
+    key_left= 'A';
+    key_right= 'D';
+    mouse_speed= 1.0f;
     screen_x= 1024;
     screen_y= 768;
+    LoadConfig();
+
     current_main_loop= this;
 
     for( int i= 0; i< 256; i++ )
@@ -293,28 +376,16 @@ MainLoop::MainLoop( Level* l, Player* p ):
 
     renderer= new Renderer( level, player );
 
-  
-    renderer->DrawFirstFrame();
-
-#ifdef MW_OS_WINDOWS
-   /* RECT r;
-    r.bottom= 34;
-    r.left= 42;
-   TextOut( hdc, 34, 42, "ololo", 5 );*/
-     SwapBuffers(hdc);
-#else
-#endif
-
     int t0= clock();
     renderer->Init();
-    int dt= clock()- t0;
-
-    if( dt < 2 * CLOCKS_PER_SEC )
-    {
-        Sleep( 2 * CLOCKS_PER_SEC - dt );
-    }
-    
-
+    int dt= clock() - t0;
+    const int delay= CLOCKS_PER_SEC*3;
+    if( dt < delay )
+#ifdef MW_OS_WINDOWS
+        Sleep( (delay-dt)*1000/CLOCKS_PER_SEC );
+#else
+        usleep( (delay-dt)*1000000/CLOCKS_PER_SEC );
+#endif
 }
 
 void MainLoop::Loop()
@@ -402,6 +473,8 @@ void MainLoop::Loop()
     }
 
 #endif
+    prev_time= current_time;
+    current_time= clock();
     level->PhysTick();
     MovePlayer();
     if( sound_system != NULL )
@@ -413,7 +486,7 @@ void MainLoop::Loop()
 
     renderer->Draw();
 #ifdef MW_OS_WINDOWS
-    SwapBuffers(hdc);
+    ::SwapBuffers(hdc);
 #else
     glXSwapBuffers(dpy, win);
 #endif
@@ -440,14 +513,16 @@ void MainLoop::MovePlayer()
     const float speed_xy= 1.0f;
     const float speed_z= 1.0f;
 
-    if( keys[ KEY('W') ] )
+    if( keys[ KEY( key_forward ) ] )
         move_vec[1]+= speed_xy;
-    if( keys[ KEY('S') ] )
+    if( keys[ KEY( key_back ) ] )
         move_vec[1]-= speed_xy;
-    if( keys[ KEY('A') ] )
+    if( keys[ KEY( key_left ) ] )
         move_vec[0]-= speed_xy;
-    if( keys[ KEY('D') ] )
+    if( keys[ KEY( key_right ) ] )
         move_vec[0]+= speed_xy;
+    if( keys[ KEY('C') ] )
+        move_vec[2]-= speed_xy;
    
       
 
@@ -463,8 +538,8 @@ void MainLoop::MovePlayer()
 
      player->Accelerate( move_vec );
 
-     const float rot_speed_xy= 1.0f;
-     const float rot_speed_z= 1.0f;
+     const float rot_speed_xy= 0.2f * mouse_speed;
+     const float rot_speed_z= 0.2f * mouse_speed;
 
      if( keys[ VK_UP ] )
          player->RotateZ( f_dt * rot_speed_z );

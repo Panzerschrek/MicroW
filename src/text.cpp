@@ -38,8 +38,11 @@ void Text::CreateTexture()
 void Text::DrawCross()
 {
     draw_crosshair= true;
-    AddText( 0, 0, 1, Text::default_color, "^" );
+    static const char t[]= { 127, 0 };
+    static const unsigned char color[]= { 255, 255, 255, 0 };
+    AddText( 0, 0, 2, color, t );
     draw_crosshair= false;
+
 }
 
 void Text::AddText( unsigned int colomn, unsigned int row, unsigned int size, const unsigned char* color, const char* text )
@@ -51,8 +54,8 @@ void Text::AddText( unsigned int colomn, unsigned int row, unsigned int size, co
 
     if( draw_crosshair )//HACK for crosshair
     {
-        x= -float( LETTER_WIDTH ) / screen_x;
-        y= -float( LETTER_HEIGHT ) / screen_y;
+        x= -float( 2*LETTER_WIDTH ) / screen_x;
+        y= -float( 2*LETTER_HEIGHT ) / screen_y;
     }
     else
     {

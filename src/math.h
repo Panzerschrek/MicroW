@@ -30,8 +30,15 @@ void Vec3Sub( float* v1, const float* v2 );
 
 
 float Vec3XYAngle( const float* v );
+float Vec3ZAngle( const float* v );
+
+float randf( float max );
+float randf( float min, float max );
 
 
+bool FindCollisionWithSphere( const float* pos, const float* vec, const float* sphere_pos, float sphere_radius, float* collision_pos );
+
+bool FindCollisionWithCylinder( const float* pos, const float* vec, const float* cylinder_pos, float cylinder_radius, float cylinder_height, float* collision_pos );
 #define MW_PI 3.1415926535897932384626433832795f
 #define MW_2PI 6.283185307179586476925286766559f
 #define MW_PI2 1.5707963267948966192313216916398f
@@ -162,6 +169,17 @@ inline float atan( float a )
     }
     return r;
 }
+
+inline float acos( float x )
+{
+    float a= atan( sqrt( 1 - x*x) / x );
+    if( x <= 0 )
+        a+= MW_PI;
+    return a;
+}
+
+void SetFloatingPointRoundingToTruncate();
+
 
 #endif//MRPG_IA32_MASM
 

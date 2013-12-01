@@ -66,10 +66,10 @@ void GenGrass( Texture* t )
         Mat4Identity( m_t );
        
 
-        a= MW_2PI * float( rand() ) / float( RAND_MAX ); 
+        a= randf(MW_2PI);//MW_2PI * float( rand() ) / float( RAND_MAX ); 
 
         for( int j= 0; j< 2; j++ )
-            m_t[j+12]= 2048.0f * float( rand() ) / float( RAND_MAX ) - 512.0f;
+            m_t[j+12]= randf( -1024.0f, 1024.0f );//2048.0f * float( rand() ) / float( RAND_MAX ) - 512.0f;
 
         Mat4RotateXY( m_r, a );
 
@@ -157,10 +157,10 @@ void GenDirt( Texture* t )
         Mat4Identity( m_t );
         //Mat4Identity(m_r);
 
-        a= MW_2PI * float( rand() ) / float( RAND_MAX ); 
+        a= randf(MW_2PI);//MW_2PI * float( rand() ) / float( RAND_MAX ); 
 
         for( int j= 0; j< 2; j++ )
-            m_t[j+12]= 2048.0f * float( rand() ) / float( RAND_MAX ) - 512.0f;
+            m_t[j+12]= randf( -1024.0f, 1024.0f);//2048.0f * float( rand() ) / float( RAND_MAX ) - 512.0f;
         /*m_r[0]= cos( a );
         m_r[1]= sin( a );
         m_r[4]= - m_r[1];
@@ -516,7 +516,7 @@ void GenCellTexture()
 
             unsigned int k= (t->SizeX() * j + i )*4;
 
-            data[k]= (unsigned char)(1.5f*dst[1]);
+            data[k]= (unsigned char)(1.9f*dst[1]);
            
             result= (unsigned char)( dst[0]- dst[1] );
             data[k+1]= (result < 2 ) ? 255 : 0;
@@ -642,10 +642,7 @@ void GenHealthpackTexture( Texture* t )
 
 void GenItemGlow( Texture* t )
 {
-   // t->Noise();
-    //t->Mul(128);
-    //t->Add(128);
-    static unsigned char color[]= { 255, 255, 64, 255 };
+    static unsigned char color[]= { 240, 240, 32, 255 };
 
     unsigned char* d= (unsigned char*) t->Data();
     unsigned int center_x= t->SizeX()/2, center_y= t->SizeY()/2;
@@ -662,10 +659,6 @@ void GenItemGlow( Texture* t )
             l= dx*dx + dy*dy;
             k= (x + y * t->SizeX())*4;
       
-            //d[k]=   (d[k] * l )>>t->SizeXLog2();
-           // d[k+1]= (d[k] * l )>>t->SizeXLog2();
-           // d[k+2]= (d[k] * l )>>t->SizeXLog2();
-           // l= l * d[k] / 256;
             if( l < l_max )
                 bright= 255 - 255 * l / l_max;
             else bright= 0;
@@ -680,15 +673,16 @@ void GenWood( Texture* t )
 {
     t->Noise();
     t->DownScaleX();
-    t->DownScaleX();
-   // t->Mul(128);
-  //  t->Add(127);
+   // t->DownScaleX();
+
 
     unsigned char* data= (unsigned char*) t->Data();
     unsigned int i_end= t->SizeX() * t->SizeY() *4;
 
-    static const unsigned char color0[]= { 146, 137, 29 };
-    static const unsigned char color1[]= { 236, 237, 128 };
+   // static const unsigned char color0[]= { 146, 137, 29 };
+    //static const unsigned char color1[]= { 236, 237, 128 };
+    static const unsigned char color0[]= { 140, 72, 16 };
+    static const unsigned char color1[]= { 62, 31, 0 };
     unsigned char d;
     for( unsigned int i= 0; i< i_end; i+=4 )
     {
@@ -700,9 +694,553 @@ void GenWood( Texture* t )
 
         data[i+3]= 255;
     }
+    t->Smooth();
+
+}
+
+void GenRobotHead(Texture* t)
+{
+    GenMetal(t);
+    t->Mul(200);
+
+    static const unsigned char eye_color[]= { 16, 16, 32, 255 };
+    static const unsigned char eye_color2[]= { 255, 16, 32, 255 };
+    t->DrawCircle( 256, 640, 128, eye_color );
+     t->DrawCircle( 256, 640, 64, eye_color2 );
+    t->DrawCircle( 768, 640, 128, eye_color );
+     t->DrawCircle( 768, 640, 64, eye_color2 );
+
+    for( int i= 128+32; i< 1024-128+32; i+=128 )
+        t->FillRect( i, 128, i+64, 384, eye_color );
+}
+
+void GenRobotBody( Texture* t )
+{
+    GenMetal(t);
+    t->Mul(192);
+
+    static const unsigned char screen_color[]= { 16, 16, 16, 255 };
+    static const unsigned char symbol_color[]= { 255, 16, 32, 255 };
+    t->FillRect( 128-32, 700, 1024-128+32, 700+144, screen_color );
+
+    t->DrawText( 512- LETTER_WIDTH * 8*6, 700+4, 6, symbol_color, "KILL ALL HUMANS!" ); 
+
+    
+}
+
+
+void GenSnow( Texture* t )
+{
+    t->Noise();
+    t->Mul(32);
+    t->Add(224);
+}
+
+void GenSnowManHead( Texture* t )
+{
+    GenSnow(t);
+    static const unsigned char eye_color[]= { 16, 16, 32, 255 };
+    
+
+    t->FillRect( 256-64-32, 512+64, 256-64, 512+128, eye_color );
+    t->FillRect( 256+64, 512+64, 256+64+32, 512+128, eye_color );
+
+    static const short dy_table[]= { 32, 0, 0, 32 };
+    for( int i= 0; i< 4; i++ )
+    {
+        short x, y;
+        x= 256-64-32 + i*64;
+        y= 512-128-32;
+        y+= dy_table[i];
+        t->FillRect( x, y, x + 16, y+32, eye_color );
+    }
+
+  
+}
+
+void GenClouds( Texture* t )
+{
+    t->Noise();
+
+     unsigned char* data= (unsigned char*) t->Data();
+    unsigned int i_end= t->SizeX() * t->SizeY() *4;
+
+    const unsigned char step= 132;//112;
+     for( unsigned int i= 0; i< i_end; i+=4 )
+     {
+         if( data[i] < step )
+         {
+             data[i+3]= 0;
+             data[i]= data[i+1]= data[i+2]= 255;
+         }
+         else
+         {
+             data[i+3]= min( 255, 6*(data[i] - step) );
+             data[i]= data[i+1]= data[i+2]= 255;
+         }
+     }
+
+}
+
+
+void GenBloodSplatter( Texture* t )
+{
+    static unsigned char color[]= { 200, 0, 0 };
+
+    unsigned char* d= (unsigned char*) t->Data();
+    unsigned int center_x= t->SizeX()/2, center_y= t->SizeY()/2;
+    int dx, dy;
+    int l;
+    unsigned int k;
+    unsigned int bright;
+    int l_max=  t->SizeX() * t->SizeX()/4 - 4;
+    for( unsigned int x= 0; x< t->SizeX(); x++ )
+        for( unsigned int y= 0; y< t->SizeY(); y++ )
+        {
+            dx= x - center_x;
+            dy= y - center_y;
+            l= dx*dx + dy*dy;
+            k= (x + y * t->SizeX())*4;
+      
+            if( l < l_max )
+                bright= 255 - 255 * l / l_max;
+            else bright= 0;
+
+            d[k+3]= bright;
+            d[k]= color[0];
+            d[k+1]= color[1];
+            d[k+2]= color[2];
+        }
+}
+
+void GenBlustParticle( Texture* t )
+{
+    static unsigned char color[]= { 255, 211, 60 };
+
+    unsigned char* d= (unsigned char*) t->Data();
+    unsigned int center_x= t->SizeX()/2, center_y= t->SizeY()/2;
+    int dx, dy;
+    int l;
+    unsigned int k;
+    unsigned int bright;
+    int l_max=  t->SizeX() * t->SizeX()/4 - 4;
+    for( unsigned int x= 0; x< t->SizeX(); x++ )
+        for( unsigned int y= 0; y< t->SizeY(); y++ )
+        {
+            dx= x - center_x;
+            dy= y - center_y;
+            l= dx*dx + dy*dy;
+            k= (x + y * t->SizeX())*4;
+      
+            if( l < l_max )
+                bright= 255 - 255 * l / l_max;
+            else bright= 0;
+
+            d[k+3]= bright;
+            d[k]= color[0];
+            d[k+1]= color[1];
+            d[k+2]= color[2];
+        }
+}
+
+void GenGaussParticle( Texture* t )
+{
+    static unsigned char color[]= { 240, 116, 60 };
+
+    unsigned char* d= (unsigned char*) t->Data();
+    unsigned int center_x= t->SizeX()/2, center_y= t->SizeY()/2;
+    int dx, dy;
+    int l;
+    unsigned int k;
+    unsigned int bright;
+    int l_max=  t->SizeX() * t->SizeX()/4 - 4;
+    for( unsigned int x= 0; x< t->SizeX(); x++ )
+        for( unsigned int y= 0; y< t->SizeY(); y++ )
+        {
+            dx= x - center_x;
+            dy= y - center_y;
+            l= dx*dx + dy*dy;
+            k= (x + y * t->SizeX())*4;
+      
+            if( l < l_max )
+                bright= 255 - 255 * l / l_max;
+            else bright= 0;
+
+            d[k+3]= bright;
+            d[k]= color[0];
+            d[k+1]= color[1];
+            d[k+2]= color[2];
+        }
+}
+
+void GenSnowSplatter( Texture* t )
+{
+    static unsigned char color[]= { 255, 255, 255 };
+
+    unsigned char* d= (unsigned char*) t->Data();
+    unsigned int center_x= t->SizeX()/2, center_y= t->SizeY()/2;
+    int dx, dy;
+    int l;
+    unsigned int k;
+    unsigned int bright;
+    int l_max=  t->SizeX() * t->SizeX()/4 - 4;
+    for( unsigned int x= 0; x< t->SizeX(); x++ )
+        for( unsigned int y= 0; y< t->SizeY(); y++ )
+        {
+            dx= x - center_x;
+            dy= y - center_y;
+            l= dx*dx + dy*dy;
+            k= (x + y * t->SizeX())*4;
+      
+            if( l < l_max )
+                bright= 255 - 255 * l / l_max;
+            else bright= 0;
+
+            d[k+3]= bright;
+            d[k]= color[0];
+            d[k+1]= color[1];
+            d[k+2]= color[2];
+        }
+}
+
+
+void GenDirtSplatter( Texture* t )
+{
+
+     static unsigned char color[]= { 112, 89, 82 };
+
+    unsigned char* d= (unsigned char*) t->Data();
+    unsigned int center_x= t->SizeX()/2, center_y= t->SizeY()/2;
+    int dx, dy;
+    int l;
+    unsigned int k;
+    unsigned int bright;
+    int l_max=  t->SizeX() * t->SizeX()/4 - 4;
+    for( unsigned int x= 0; x< t->SizeX(); x++ )
+        for( unsigned int y= 0; y< t->SizeY(); y++ )
+        {
+            dx= x - center_x;
+            dy= y - center_y;
+            l= dx*dx + dy*dy;
+            k= (x + y * t->SizeX())*4;
+      
+            if( l < l_max )
+                bright= 255 - 255 * l / l_max;
+            else bright= 0;
+
+            d[k+3]= bright;
+            d[k]= color[0];
+            d[k+1]= color[1];
+            d[k+2]= color[2];
+        }
+}
+
+void GenWeaponSmoke( Texture* t )
+{
+    t->Noise();
+    static unsigned char color[]= { 128, 128, 128 };
+
+    unsigned char* d= (unsigned char*) t->Data();
+    unsigned int center_x= t->SizeX()/2, center_y= t->SizeY()/2;
+    int dx, dy;
+    int l;
+    unsigned int k;
+    int bright;
+    int l_max=  t->SizeX() * t->SizeX()/4 - 4;
+    for( unsigned int x= 0; x< t->SizeX(); x++ )
+        for( unsigned int y= 0; y< t->SizeY(); y++ )
+        {
+            dx= x - center_x;
+            dy= y - center_y;
+            l= dx*dx + dy*dy;
+            k= (x + y * t->SizeX())*4;
+      
+            //if( l < l_max )
+                bright= 255 - 255 * l / l_max;
+           // else bright= 0;
+
+            bright= (bright * 9 + (d[k]&31)*7 * 3)/12;
+            if( bright < 0 ) bright = 0;
+            d[k+3]= bright;
+            d[k]= color[0];
+            d[k+1]= color[1];
+            d[k+2]= color[2];
+        }
+}
+
+
+void GenWaterWaves( Texture* t )
+{
+   // GenCellTexture();
+   // t->Copy( CELL_TEXTURE );
+    t->Noise();
+    t->Smooth();
+    t->Smooth();
+    unsigned char* d= (unsigned char*) t->Data();
+
+    short mask_x= t->SizeX()-1, mask_y= t->SizeY()-1;
+    short dx, dy;
+    unsigned int k;
+    for( unsigned int j= 0; j< t->SizeY(); j++ )
+        for( unsigned int i= 0; i< t->SizeX(); i++ )
+        {
+            k= 4* ( ((i+2)&mask_x) + j*t->SizeX() );
+            dx= d[k];
+            k= 4* ( ((i-2)&mask_x) + j*t->SizeX() );
+            dx-=d[k];
+            dx*=4;
+
+            k= 4* ( i + ((j+2)&mask_y)*t->SizeX() );
+            dy= d[k];
+            k= 4* ( i + ((j-2)&mask_y)*t->SizeX() );
+            dy-=d[k];
+            dy*=4;
+
+            k= 4* ( i + j*t->SizeX() );
+            d[k+1]= dx + 128;
+            d[k+2]= dy + 128;
+            d[k+3]= 255;
+        }
+
+    //->Mul(t);
+ 
+}
+
+void GenDarkMetal( Texture* t )
+{
+    GenMetal(t);
+    t->Mul(128);
+    return;
+
+    /*t->Noise();
+ 
+
+    unsigned char* data= (unsigned char*) t->Data();
+    unsigned int i_end= t->SizeX() * t->SizeY() *4;
+
+    static const unsigned char color0[]= { 141, 144, 151 };
+    static const unsigned char color1[]= { 150, 134, 132 };
+    unsigned char d;
+    for( unsigned int i= 0; i< i_end; i+=4 )
+    {
+        //d= data[i]&0xFC;
+       // d*=5;
+        d= data[i];
+
+       // d/=8;
+       // d+= 223;
+
+        for( unsigned int k= 0; k< 3; k++ )
+            data[i+k]= (d * color0[k] + (255-d) * color1[k])/512;
+           //data[k+i]= d * color0[k] / 256;
+
+        data[i+3]= 255;
+    }
+    t->Smooth();*/
+}
+
+void GenChainBulletsAmmoBoxTexture( Texture* t )
+{
+    GenDarkMetal( t );
+
+    static unsigned const char color[]= { 192, 192, 192, 255 };
+    for( unsigned int i= 0; i< 3; i++ )
+    {
+        t->FillRect( 512-128-32 + 128*i, 400, 512-128+32  + 128*i, 550, color );
+        t->DrawCircle( 512-128 + 128*i, 600, 32, color );
+    }
+    t->FillRect( 512-128-32, 420, 512-128-32 +128*2, 430, color );
+    t->FillRect( 512-128-32, 520, 512-128-32 +128*2, 530, color );
+}
+
+void GenBulletsAmmoTexture( Texture* t )
+{
+    GenWood( t );
+
+    static unsigned const char color[]= { 192, 192, 192, 255 };
+    for( unsigned int i= 0; i< 3; i++ )
+    {
+        t->FillRect( 512-128-32 + 128*i, 440, 512-128+32  + 128*i, 550, color );
+        t->DrawCircle( 512-128 + 128*i, 600, 32, color );
+    }
+}
+
+void GenStone( Texture* t )
+{
+    t->Noise();
+   t->DownScaleX();
+
+    unsigned char* data= (unsigned char*) t->Data();
+    unsigned int i_end= t->SizeX() * t->SizeY() *4;
+
+    static const unsigned char color[]= { 
+        66, 73, 79,
+        85, 85, 85,
+        104, 98, 100,
+        84, 82, 82,
+        84, 94, 95};
+    unsigned char d;
+    for( unsigned int i= 0; i< i_end; i+=4 )
+    {
+       // d= data[i]&0xFC;
+       //  d*=3;
+        d= data[i];
+
+        unsigned char c0, c1;
+        c0= d / ( 256/4 );
+        c1= c0+1;
+        d= ( d - c0*(256/4) )*4;
+        for( unsigned int k= 0; k< 3; k++ )
+            data[i+k]= (d * color[k + c1*3 ] + (255-d) * color[k + c0*3 ])/256;
+
+        data[i+3]= 255;
+    }
+}
+
+void GenFireBalltexture( Texture* t )
+{
+    GenCellTexture();
+
+
+    const static unsigned char color0[]= { 245, 89, 14, 0 };
+    const static unsigned char color1[]= { 255, 241, 159, 0 };
+
+    unsigned char* data= (unsigned char*) t->Data();
+    unsigned char* in_data= (unsigned char*) CELL_TEXTURE->Data();
+    unsigned int i_end= t->SizeX() * t->SizeY() * 4;
+    unsigned char k0, k1;
+    for( unsigned int i= 0; i< i_end; i+=4 )
+    {
+        k0= in_data[i];
+        k1= ~k0;
+        for( unsigned int j= 0; j< 3; j++ )
+            data[i+j]= (k0 *color1[j] + k1 * color0[j])>>8;
+        data[i+3]= 255;
+    }
+}
+
+void GenCuperWire( Texture* t )
+{
+    static const short wire_v_s[]= {
+        0, 0,
+        0, 40,
+        1024, 40+64,
+        1024, 64,
+        0, 0  };
+
+    short wire_v[10];
+    memcpy( wire_v, wire_v_s, sizeof(short)*10);
+
+    static const unsigned char clear_color[]= { 184, 83, 1, 255 };
+    t->Clear(clear_color);
+    static const unsigned char color[]= { 234, 125, 28, 255 };
+
+    for( unsigned int i= 0; i< 1024/64; i++ )
+    {
+        t->DrawTriangle( wire_v, color );
+        t->DrawTriangle( wire_v+4, color );
+        wire_v[1]+= 64;
+        wire_v[3]+= 64;
+        wire_v[5]+= 64;
+        wire_v[7]+= 64;
+        wire_v[9]+= 64;
+    }
+
+    t->Smooth();
+
+    Texture t2( t->SizeXLog2(), t->SizeYLog2() );
+    t2.Noise();
+    t2.DownScaleX();
+    t2.DownScaleY();
+    t2.Mul(64);
+    t2.Add( 255-64 );
+
+    t->Mul(&t2);
+
+                       
+}
+
+
+void GenBloodScreenTexture( Texture* t )
+{
+    GenCellTexture();
+
+    unsigned char* data= (unsigned char*) t->Data();
+    unsigned char* in_data= (unsigned char*) CELL_TEXTURE->Data();
+    
+    unsigned int mask_x= t->SizeX()-1, mask_y= t->SizeY()-1;
+    for( unsigned int j=0; j< t->SizeY(); j++ )
+        for( unsigned int i= 0; i< t->SizeX(); i++ )
+        {
+            int dx= int( sin(float(j)*(MW_2PI/128.0f)) * 16.0f );
+            int dy= int( sin(float(i)*(MW_2PI/128.0f)) * 16.0f );
+            unsigned int k= 4*(((i+dx)&mask_x) + ((j+dy)&mask_y)*t->SizeX());
+            unsigned char c= in_data[k];
+
+            k= 4*( i + j*t->SizeX());
+            data[k]= c;
+            //data[k+1]= data[k+2]= data[k+3]= 0;
+        }
+
+    t->Smooth();
+}
+
+
+void GenGreenery( Texture* t )
+{
+    GenCellTexture();
+    t->Copy( CELL_TEXTURE );
+
+    t->DownScaleX();
+    t->DownScaleY();
+
+    static const unsigned char init_color[]= { 14, 116, 25 }; 
+    unsigned char color[64][3];
+    const char color_delta= 8;
+    const char bright_delta= 16;
+    for( unsigned int i= 0; i< 64; i++ )
+    {
+        unsigned char d= bright_delta * rand()/RAND_MAX;
+        for( unsigned int k= 0; k< 3;k++ )
+        {
+        color[i][k]= init_color[k] + d + rand()*color_delta/RAND_MAX;
+        }
+    }
+
+    unsigned char* data= (unsigned char*) t->Data();
+    unsigned char* d_end= data + t->SizeX()*t->SizeX() * 4;
+    int x=0, y=0, d, mask_x= t->SizeX()-1, mask_y= t->SizeY()-1;
+    for( ; data < d_end; data+= 4 )
+    {
+        unsigned char k= data[2];
+        unsigned char color_id= data[3];
+        int lx= x - t->SizeX()/2, ly= y -t->SizeY()/2;
+        d= lx * lx + ly * ly;
+
+        data[0]= color[color_id][0];
+        data[1]= color[color_id][1];
+        data[2]= color[color_id][2];
+        if( d < 262144 )
+            data[3]= max(255 - k + 50, 64 );
+        else
+            data[3]= 0;
+
+        if( x == t->SizeX()-1 )
+        {
+            x= 0;
+            y++;
+        }
+        else
+            x++;
+    }
+
+
 
 }
 
 void (*texture_gen_func[])(Texture* t)={
     GenGrass, GenTile, GenBrick, GenSand, GenDirt, GenSpruceBranch, GenTreeBark, GenAchtungMines,
-    GenMetal, GenCacodemonSkin, GenPavingStone, GenHealthpackTexture, GenWood };
+    GenMetal, GenDarkMetal, GenPavingStone, GenHealthpackTexture, GenWood, GenRobotHead, GenRobotBody, GenSnow,
+    GenSnowManHead, GenCacodemonSkin, GenBulletsAmmoTexture, GenChainBulletsAmmoBoxTexture, GenStone, GenFireBalltexture, GenCuperWire, GenGreenery };
+
+void (*particle_texture_gen_func[])(Texture* t)= {  GenBloodSplatter, GenDirtSplatter, GenWeaponSmoke, GenBlustParticle, GenSnowSplatter, GenGaussParticle };

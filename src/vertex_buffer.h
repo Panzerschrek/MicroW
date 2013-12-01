@@ -14,13 +14,13 @@ class VertexBuffer
     static void EnableAttribs( int count );
 
     void GenVAO();
-	void VertexData( void* data, unsigned int data_size, unsigned int vertex_size );
-	void IndexData( void* data, unsigned int data_size );
+	void VertexData( const void* data, unsigned int data_size, unsigned int vertex_size );
+	void IndexData( const void* data, unsigned int data_size );
 	void VertexAttrib( int attrib, unsigned int components, GLenum type, bool normalized, unsigned int shift );
     void VertexAttribInt( int attrib, unsigned int components, GLenum type, unsigned int shift );
 
-	void VertexSubData( void* data, unsigned int data_size, unsigned int shift );
-	void IndexSubData( void* data, unsigned int data_size, unsigned int shift );
+	void VertexSubData( const void* data, unsigned int data_size, unsigned int shift );
+	void IndexSubData( const void* data, unsigned int data_size, unsigned int shift );
 
 	void Bind();
 

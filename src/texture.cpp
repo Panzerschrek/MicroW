@@ -16,6 +16,7 @@ Texture::Texture( unsigned int log2_x, unsigned int log2_y )
     tex_id= 0xffffffff;
 
     data= new unsigned char[ 4 * size_x * size_y ];
+    one_channel= false;
 }
 
 
@@ -49,13 +50,21 @@ void Texture::Sub( const Texture* t )
 
 void Texture::Copy( Texture* t )
 {
-    unsigned char *d_dst, *d_end, *d_src;
-    d_dst= data;
-    d_end= data + ((size_x * size_y )<<2);
-    d_src= t->data;
-    
-     for( ; d_dst!= d_end; d_dst++, d_src++ )
-         *d_dst= *d_src;
+    memcpy( this->data, t->data, size_x * size_y * 4 );
+}
+
+void Texture::Copy( const Texture* t, unsigned short width, unsigned short height, unsigned short src_x, unsigned short src_y, unsigned short dst_x, unsigned short dst_y )
+{
+    unsigned int k_src, k_dst;
+
+    for( unsigned int y= 0; y!= height; y++ )
+        for( unsigned int x= 0; x!= width; x++ )
+        {
+            k_dst= 4 *( x + dst_x + (y+dst_y)*size_x );
+            k_src= 4 *( x + src_x + (y+src_y)*t->size_x );
+            for( unsigned int k= 0; k< 4; k++ )
+                data[k_dst+k]= t->data[k_src+k];
+        }
 }
 
 void Texture::AlphaBlend( const Texture* t )
@@ -158,9 +167,10 @@ void Texture::Move2GPU()
     glGenTextures( 1, &tex_id );
     glBindTexture( GL_TEXTURE_2D, tex_id );
 
-     glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8,
+    glTexImage2D( GL_TEXTURE_2D, 0, one_channel ? GL_RED : GL_RGBA8,
                   size_x, size_y, 0,
-                  GL_RGBA,  GL_UNSIGNED_BYTE, data );
+                  one_channel ? GL_RED : GL_RGBA,
+                  GL_UNSIGNED_BYTE, data );
     
     glGenerateMipmap( GL_TEXTURE_2D );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
@@ -205,8 +215,8 @@ void Texture::DrawCircle( short x, short y, short r, const unsigned char* color 
     mask_y= size_y-1;
 
 
-    for( x0= x - r; x0< x_end; x0++ )
-        for( y0= y - r; y0< y_end; y0++ )
+    for( y0= y - r; y0< y_end; y0++ )
+        for( x0= x - r; x0< x_end; x0++ )
         {
             if( (( x-x0)*(x-x0)+(y-y0)*(y-y0)) <= r2 )
             {
@@ -226,8 +236,8 @@ void Texture::FillRect( short x0, short y0, short x1,short y1, const unsigned ch
     mask_x= size_x-1;
     mask_y= size_y-1;
 
-    for( x= x0; x<= x1; x++ )
-        for( y= y0; y<= y1; y++ )
+    for( y= y0; y<= y1; y++ )
+        for( x= x0; x<= x1; x++ )
         {
             k= ((x&mask_x) + ((y&mask_y) << size_x_log2) )<<2;
                 data[k    ]= color[0];
@@ -254,8 +264,8 @@ void Texture::DrawText( short x, short y, unsigned int size, const unsigned char
             continue;
         }
 
-        for( unsigned int i= 0; i< LETTER_WIDTH*size; i++ )
-            for( unsigned int j= 0; j< LETTER_HEIGHT*size; j++ )
+        for( unsigned int j= 0; j< LETTER_HEIGHT*size; j++ )
+            for( unsigned int i= 0; i< LETTER_WIDTH*size; i++ )
             {
                  d= i/size + (*text - 32)*LETTER_WIDTH  + j/size * FONT_BITMAP_WIDTH;
                 if( text_data[d] != 0 )
@@ -469,8 +479,8 @@ void Texture::Smooth()
     int mask_x= size_x-1, mask_y=size_y-1;
 
     unsigned int r;
-    for( i= 0; i< size_x; i++ )
-		for( j= 0; j< size_y; j++ )
+    for( j= 0; j< size_y; j++ )
+        for( i= 0; i< size_x; i++ )
         {
             for( k= 0; k< 4; k++ )
             {
@@ -568,8 +578,8 @@ void Texture::DownScaleX()
     unsigned int d1, d2;
     unsigned int mask_x= size_x - 1;
 
-    for( unsigned int i= 0; i< size_x; i++ )
-        for( unsigned int j= 0; j< size_y; j++ )
+    for( unsigned int j= 0; j< size_y; j++ )
+        for( unsigned int i= 0; i< size_x; i++ )
         {
             d1= (i + (j<<size_x_log2) )<<2;
             d2= (((i<<1)&mask_x) + (j<<size_x_log2) )<<2;
@@ -602,4 +612,14 @@ void Texture::DownScaleY()
 
         delete[] data;
         data= new_d;
+}
+
+void Texture::ToOneChannel( unsigned char channel )
+{
+    unsigned char* d= data,* in_data= data;
+    unsigned char* d_end= data + size_x * size_y;
+
+    for( ; d!= d_end; d++, in_data+=4 )
+        *d= in_data[ channel ];
+    one_channel= true;
 }

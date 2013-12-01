@@ -11,7 +11,7 @@
 
 
 
-#define MAX_PARALLEL_SOUNDS 16
+#define MAX_PARALLEL_SOUNDS 12
 
 class SoundSystem
 {

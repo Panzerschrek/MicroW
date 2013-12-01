@@ -5,6 +5,7 @@
 #include "player.h"
 #include "level.h"
 #include "sound_system.h"
+#include "time.h"
 
 class MainLoop
 {
@@ -55,8 +56,21 @@ public:
     Window     win;
 
 #endif
+    char key_forward, key_back, key_left, key_right, key_jump, key_down;
+    float mouse_speed;
+    void LoadConfig();
 public://hack
 	static MainLoop* current_main_loop;
+
+private:
+    static unsigned int current_time;
+    static unsigned int prev_time;
+public:
+    static float FrameDT() { return float( current_time - prev_time )/float(CLOCKS_PER_SEC); }
+    static unsigned int PrevFrameTime() { return prev_time; }
+    static unsigned int CurrentTime(){ return current_time; }
+    static void SwapBuffers();
+
 };
 
 inline  HWND MainLoop::GetHWND()

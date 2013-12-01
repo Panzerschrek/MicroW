@@ -10,6 +10,7 @@
 #include "glsl_program.h"
 #include "texture.h"
 #include "model.h"
+#include "math.h"
 
 #define QUADS_PER_CHUNK 64
 #define CHUNK_LOD_COUNT 5
@@ -29,14 +30,16 @@ class Renderer
 	Renderer( Level* l, Player* p );
 	~Renderer(){}
 
-	void SetSceneScale( float s );
-	void ZoomIn();
-	void ZoomOut();
+	//void SetSceneScale( float s );
+	//void ZoomIn();
+	//void ZoomOut();
+    void Zoom();
 
     void Init();
 	void Draw();
     void DrawGUI();
-    void DrawFirstFrame();
+    void DrawDeathScreen();
+    //void DrawFirstFrame();
     void SetViewport( unsigned int x, unsigned int y );
 
 
@@ -48,6 +51,7 @@ class Renderer
     void DrawWeapon();
     void DrawMonsters();
     void GenLandscapeMesh();
+    void DrawLoading( unsigned int stage );
 
     void InitTextures();
     void InitShaders();
@@ -83,14 +87,31 @@ class Renderer
     Texture land_texture;
     GLuint land_texture_array;
     GLuint land_texture_map;
-
+    GLuint land_shadow_map;
 
    // Model animated_models[4];
     GLSLProgram animated_models_shader;
+    GLSLProgram weapon_shader;
+    GLSLProgram blood_shader;
+    void DrawBlood();
+    Texture* blood_texture;
     //VertexBuffer animated_models_vbo;
   //  void DrawAnimatedModels();
     void DrawAnimatedModel( const Model* m, const bool* active_animations,
-    const float* animation_time, const float* v_matrix, const float* n_matrix, unsigned int v_shift, unsigned int i_shift   );
+    const float* animation_time, const float* v_matrix, const float* n_matrix, unsigned int v_shift, unsigned int i_shift, 
+    GLSLProgram* shader  );
+
+    GLSLProgram water_shader;
+    Texture* water_texture;
+    void DrawWater();
+
+    void DrawParticles();
+    GLSLProgram particle_shader;
+    VertexBuffer particles_vbo;
+    GLuint particles_texture_array;
+
+    void DrawBullets();
+
 
     void DrawSky();
     GLSLProgram sky_shader;
@@ -98,7 +119,7 @@ class Renderer
 	Text text;
 
 	unsigned int screen_x, screen_y;
-	float scene_scale;
+	float fov;
 
     Model monsters[MONSTER_COUNT];
     //Model weapons[4];
@@ -106,9 +127,9 @@ class Renderer
     unsigned int monsters_index_shift[MONSTER_COUNT];
     //unsigned int weapons_vertex_shift[4];
     //unsigned int weapons_index_shift[4];
-	Model static_objects[ STATIC_OBJECTS ];
-    unsigned int model_vertex_shift[ STATIC_OBJECTS ];
-    unsigned int model_index_shift[ STATIC_OBJECTS ];
+	Model static_objects[ STATIC_OBJECTS + BULLET_TYPE_COUNT + 1 ];
+    unsigned int model_vertex_shift[ STATIC_OBJECTS + BULLET_TYPE_COUNT + 1 ];
+    unsigned int model_index_shift[ STATIC_OBJECTS + BULLET_TYPE_COUNT + 1 ];
 
     float view_matrix[16];
     float inv_view_matrix[16];
@@ -119,8 +140,10 @@ class Renderer
     void CalculateFPS();
 
 
-};
+    Texture* cloud_texture;
 
+};
+/*
 inline void Renderer::SetSceneScale( float s )
 {
 	scene_scale= s;
@@ -136,6 +159,14 @@ inline void Renderer::ZoomOut()
 {
 	if( scene_scale> 0.03125f )
 		scene_scale*= 0.5f;
+}*/
+
+inline void Renderer::Zoom()
+{
+    if( fov < 0.8f * MW_PI2 )
+        fov= 0.8f* MW_PI2;
+    else
+        fov= 0.4f * MW_PI2;
 }
 
 
@@ -143,7 +174,7 @@ inline void Renderer::SetViewport( unsigned int x, unsigned int y )
 {
     screen_x= x;
     screen_y= y;
-    printf( "viewport: %d %d\n", x, y );
+//    printf( "viewport: %d %d\n", x, y );
     text.SetViewport(x,y);
     glViewport( 0, 0, x, y );
 }

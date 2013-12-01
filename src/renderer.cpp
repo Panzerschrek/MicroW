@@ -7,7 +7,8 @@
 #include "texture_generation.h"
 #include "model.h"
 #include "model_generation.h"
-
+#include "particle_manager.h"
+#include "main_loop.h"
 
 void Renderer::InitTextures()
 {
@@ -19,7 +20,7 @@ void Renderer::InitTextures()
     glGenTextures(1, &land_texture_array );
     glBindTexture( GL_TEXTURE_2D_ARRAY, land_texture_array );
     glTexImage3D( GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8,
-                1024, 1024, 32,//size
+                1024, 1024, NearestPOT<TEXTURE_COUNT>(),//size
                 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
 
      //GENERATION OF TEXTURES
@@ -37,7 +38,7 @@ void Renderer::InitTextures()
     glGenerateMipmap( GL_TEXTURE_2D_ARRAY );
 
 
-    const Landscape* land= level->GetLandscape();
+    Landscape* land= (Landscape*) level->GetLandscape();
 
     //texture map for landscape
     glGenTextures( 1, &land_texture_map );
@@ -45,6 +46,17 @@ void Renderer::InitTextures()
     glTexImage2D( GL_TEXTURE_2D, 0, GL_R8,
                   land->SizeX(), land->SizeY(), 0,
                   GL_RED,  GL_UNSIGNED_BYTE, land->Texturemap() );
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+
+
+    //shadow map of landscape
+    glGenTextures( 1, &land_shadow_map );
+    glBindTexture( GL_TEXTURE_2D, land_shadow_map );    
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_R8,
+                  land->SizeX(), land->SizeY(), 0,
+                  GL_RED,  GL_UNSIGNED_BYTE, land->ShadowMap() );
 
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
@@ -64,7 +76,43 @@ void Renderer::InitTextures()
     //new(item_glow_texture) Texture(128,128);
     GenItemGlow( &item_glow_texture );
     item_glow_texture.Move2GPU();
+
+
+
+   /* Texture t( 11, 11 );
+    GenClouds(&t);
+    t.Move2GPU();*/
+    Texture pt(7,7);
+    glGenTextures( 1, &particles_texture_array );
+    glBindTexture( GL_TEXTURE_2D_ARRAY, particles_texture_array );
+     glTexImage3D( GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8,
+                128, 128, 8,//size
+                0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+     for( unsigned int i= 0; i< PARTICLE_TYPE_COUNT; i++ )
+     {
+         particle_texture_gen_func[i]( &pt );
+          glTexSubImage3D( GL_TEXTURE_2D_ARRAY, 0, 
+                        0,0,i,//offset
+                        128, 128, 1,//size
+                        GL_RGBA, GL_UNSIGNED_BYTE, pt.Data() );
+     }
+     glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+      glGenerateMipmap( GL_TEXTURE_2D_ARRAY );
+
+
+     water_texture= new Texture(9,9);
+     GenWaterWaves(water_texture);
+     water_texture->Move2GPU();
+
+     blood_texture= new Texture(10,10);
+     GenBloodScreenTexture( blood_texture );
+     blood_texture->Move2GPU();
    
+
+     cloud_texture= new Texture(11,11);
+     GenClouds( cloud_texture );
+     cloud_texture->ToOneChannel(3);
+     cloud_texture->Move2GPU();
 }
 
 void Renderer::InitShaders()
@@ -87,6 +135,7 @@ void Renderer::InitShaders()
     landscape_shader.FindUniform( "a" );//uniform 4 - landscape amplitude
     landscape_shader.FindUniform( "tm" );//uniform 5 - texture map
     landscape_shader.FindUniform( "sun" );//uniform 6 - sun vector
+    landscape_shader.FindUniform( "sm" );//uniform 7 - shadow map
 
     item_glow_shader.SetAttribLocation( "v", 0 );
     item_glow_shader.Create( item_glow_shader_v, item_glow_shader_f );
@@ -106,7 +155,42 @@ void Renderer::InitShaders()
     sky_shader.SetAttribLocation( "v", 0 );
     sky_shader.Create( sky_shader_v, sky_shader_f );
     sky_shader.FindUniform( "m" );
+    sky_shader.FindUniform( "sun" );
+    sky_shader.FindUniform( "tex" );
+    sky_shader.FindUniform( "cs" );//cloud shift - 3
 
+    particle_shader.SetAttribLocation( "v", 0 );
+    particle_shader.Create( particle_shader_v, particle_shader_f );
+    particle_shader.FindUniform( "m" );//transform matirx
+    particle_shader.FindUniform( "tex" );
+
+
+    water_shader.SetAttribLocation( "v", 0 );
+    water_shader.Create( water_shader_v, water_shader_f );
+    water_shader.FindUniform( "m" );//transform matirx
+    water_shader.FindUniform( "h" );//water level
+    water_shader.FindUniform( "cam" );//camera position
+    water_shader.FindUniform( "sun" );
+    water_shader.FindUniform( "tex" );
+    water_shader.FindUniform( "t" );//time - #5
+
+
+    weapon_shader.SetAttribLocation( "v", 0 );//position
+    weapon_shader.SetAttribLocation( "tc", 1 );//texture coord
+    weapon_shader.SetAttribLocation( "n", 2 );//normal
+    weapon_shader.SetAttribLocation( "b", 3 );//bone id
+    weapon_shader.Create( weapon_shader_v, weapon_shader_f );
+    weapon_shader.FindUniform( "nm" );//normal matrices 0
+    weapon_shader.FindUniform( "vm" );//vertex matirces 1
+    weapon_shader.FindUniform( "tex" );//uniform 2 - texture
+    weapon_shader.FindUniform( "ivm" );//uniform 3 - inverce view matrix
+    weapon_shader.FindUniform( "pm" );//uniform 4 - projection matirx
+    weapon_shader.FindUniform( "sun" );//uniform 5 - sun vector
+    weapon_shader.FindUniform( "cam" );//6 - camera position
+
+    blood_shader.Create( blood_shader_v, blood_shader_f );
+    blood_shader.FindUniform( "bf" );//blood factor - 0
+     blood_shader.FindUniform( "tex" );//1
 }
 
 
@@ -114,6 +198,7 @@ void Renderer::InitVertexBuffers()
 {
     GenCacodemon( &monsters[0] );
     GenRobot( &monsters[1] );
+    GenSnowMan( &monsters[2] );
     unsigned int v_count= 0, i_count= 0; 
      for( unsigned int i= 0; i< MONSTER_COUNT; i++ )
     {
@@ -143,59 +228,11 @@ void Renderer::InitVertexBuffers()
 
 
 
-    /*GenRobot( &animated_models[0] );
-    animated_models_vbo.GenVAO();
-    animated_models_vbo.VertexData( animated_models[0].vertices,
-        animated_models[0].vertex_count * sizeof(ModelVertex), sizeof(ModelVertex) );
-    animated_models_vbo.IndexData( animated_models[0].indeces, animated_models[0].index_count * sizeof(short) );
-    animated_models_vbo.VertexAttrib( 0, 3, GL_SHORT, false, 0 );//position
-    animated_models_vbo.VertexAttrib( 1, 3, GL_SHORT, false, 6 );//texture coord
-    animated_models_vbo.VertexAttrib( 2, 3, GL_BYTE, true, 6 + 6 );//normal
-    animated_models_vbo.VertexAttribInt( 3, 1, GL_UNSIGNED_BYTE, 6 + 6 + 3 );*/
 
-    /*GenShovel(&weapons[0]);
-    GenPistol(&weapons[1] );
-    GenMachineGun(&weapons[2] );
     v_count= 0, i_count= 0; 
-    for( unsigned int i= 0; i< 3; i++ )
+    for( unsigned int i= 0; i< STATIC_OBJECTS + BULLET_TYPE_COUNT + 1; i++ )
     {
-        v_count+= weapons[i].vertex_count;
-        i_count+= weapons[i].index_count;
-    }
-    player_weapon_vbo.GenVAO();
-    player_weapon_vbo.VertexData( NULL, v_count * sizeof(ModelVertex), sizeof(ModelVertex) );
-    player_weapon_vbo.IndexData( NULL, i_count * sizeof(short) );
-    for( unsigned int i= 0, vs= 0, is= 0; i< 3; i++ )
-    {
-        weapons_vertex_shift[i]= vs;
-        weapons_index_shift[i]= is;
-        player_weapon_vbo.VertexSubData( weapons[i].vertices,
-            weapons[i].vertex_count * sizeof(ModelVertex), vs * sizeof(ModelVertex) );
-        player_weapon_vbo.IndexSubData( weapons[i].indeces,
-            weapons[i].index_count * sizeof(short), is * sizeof(short) );
-
-        vs+= weapons[i].vertex_count;
-        is+= weapons[i].index_count;
-     }
-    player_weapon_vbo.VertexAttrib( 0, 3, GL_SHORT, false, 0 );//position
-    player_weapon_vbo.VertexAttrib( 1, 3, GL_SHORT, false, 6 );//texture coord
-    player_weapon_vbo.VertexAttrib( 2, 3, GL_BYTE, true, 6 + 6 );//normal*/
-
-
-
-
-
-    GenTree( &static_objects[ OBJECT_SPRUCE ] );
-    GenAchtungTable( &static_objects[ OBJECT_ACHTUNG_TABLE ] );
-    GenSmallHealthPack( &static_objects[ OBJECT_SMALL_HEALTHPACK ] );
-    GenMediumHealthPack( &static_objects[ OBJECT_MEDIUM_HEALTHPACK ] );
-    GenLargeHealthPack( &static_objects[ OBJECT_LARGE_HEALTHPACK ] );
-    GenShovel( &static_objects[OBJECT_SHOVEL] );
-    GenPistol( &static_objects[OBJECT_PISTOL] );
-    GenMachineGun( &static_objects[OBJECT_MACHINEGUN] );
-    v_count= 0, i_count= 0; 
-    for( unsigned int i= 0; i< STATIC_OBJECTS; i++ )
-    {
+        static_objects_generation_func[i]( static_objects + i );
         v_count+= static_objects[i].vertex_count;
         i_count+= static_objects[i].index_count;
     }
@@ -206,7 +243,7 @@ void Renderer::InitVertexBuffers()
     level_vbo.VertexAttrib( 1, 3, GL_SHORT, false, 6 );//texture coord
     level_vbo.VertexAttrib( 2, 3, GL_BYTE, true, 6 + 6 );//normal
     level_vbo.VertexAttribInt( 3, 1, GL_UNSIGNED_BYTE, 6 + 6 + 3 );//bone id
-    for( unsigned int i= 0, vs=0, is= 0; i< STATIC_OBJECTS; i++ )
+    for( unsigned int i= 0, vs=0, is= 0; i< STATIC_OBJECTS + BULLET_TYPE_COUNT + 1; i++ )
     {
        model_vertex_shift[i]= vs;
        model_index_shift[i]= is;
@@ -235,20 +272,29 @@ void Renderer::InitVertexBuffers()
     item_glow_vbo.VertexAttrib( 0, 4, GL_FLOAT, false, 0 );// 1 attrib - position
     item_glow_vertices= new float[ 2048 * 4 ];
 
+    particles_vbo.GenVAO();
+    particles_vbo.VertexData( NULL, MAX_PARTICLES * 4 * sizeof(float), 4*sizeof(float) );
+    particles_vbo.VertexAttrib( 0, 4, GL_FLOAT, false, 0 );// 1 attrib - position
 }
 
 
 void Renderer::Init()
 {
 
+    sun_vector[0]= 0.7f;
+    sun_vector[1]= 0.5f;
+    sun_vector[2]= 0.5f;
+
+    DrawLoading(0);
+    ( (Landscape*) level->GetLandscape() )->GenShadowMap( sun_vector );
+
+    DrawLoading(1);
     InitShaders();
+    DrawLoading(2);
     InitVertexBuffers();
+    DrawLoading(3);
     InitTextures();
-
-
-   sun_vector[0]= 0.7f;
-   sun_vector[1]= 0.5f;
-   sun_vector[2]= 0.5f;
+    DrawLoading(4);
 }
 
 Renderer::Renderer( Level* l, Player* p ):
@@ -261,6 +307,7 @@ Renderer::Renderer( Level* l, Player* p ):
     glGetIntegerv( GL_VIEWPORT, v );
     screen_x= v[2];
     screen_y= v[3];
+    fov= 0.8f * MW_PI2;
 }
 
 
@@ -292,7 +339,7 @@ void Renderer::CalculateViewMatrix()
 {
     float translate[16], rotate_xy[16], rotate_z[16], perspective[16];
    
-    Mat4Perspective( perspective, float(screen_x) / float(screen_y), 0.8f* MW_PI2, 0.0625f, 4096.0f );
+    Mat4Perspective( perspective, float(screen_x) / float(screen_y), fov, 0.0625f, 4096.0f );
 
     Mat4Identity( translate );
     Mat4Identity( rotate_z );
@@ -301,7 +348,7 @@ void Renderer::CalculateViewMatrix()
 
     translate[12]= -player->Position()[0];
     translate[13]= -player->Position()[1];
-    translate[14]= -player->Position()[2] - PLAYER_HEIGHT + 0.2f;
+    translate[14]= -player->Position()[2] - PLAYER_HEIGHT;
   
    
     Mat4RotateXY( rotate_xy, -player->AngXY() );
@@ -346,18 +393,19 @@ void Renderer::DrawLandscape()
 {
     glActiveTexture( GL_TEXTURE0 );
     glBindTexture( GL_TEXTURE_2D, landscape_heightmap_texture );
- 
     glActiveTexture( GL_TEXTURE1 );
     glBindTexture( GL_TEXTURE_2D_ARRAY, land_texture_array );
-
-     glActiveTexture( GL_TEXTURE2 );
+    glActiveTexture( GL_TEXTURE2 );
     glBindTexture( GL_TEXTURE_2D, land_texture_map );
+    glActiveTexture( GL_TEXTURE3 );
+    glBindTexture( GL_TEXTURE_2D, land_shadow_map );
  
 
     landscape_shader.Bind();
     landscape_shader.UniformInt( 0, 0 );//heightmap
     landscape_shader.UniformInt( 3, 1 );//texture
     landscape_shader.UniformInt( 5, 2 );//map
+    landscape_shader.UniformInt( 7, 3 );//shadow map
     landscape_shader.UniformMat4( 2, view_matrix );
     landscape_shader.UniformFloat( 4, level->GetLandscape()->Amplitude() );
 
@@ -376,20 +424,22 @@ void Renderer::DrawLandscape()
     player_x= (int) player->Position()[0] / QUADS_PER_CHUNK;
     player_y= (int) player->Position()[1] / QUADS_PER_CHUNK;
     int r;
-    unsigned int triangle_count= 0;
-
-   // float chunk_pos[3];
+#ifdef MW_DEBUG
+    unsigned int triangle_count= 0, chunk_count= 0;
+#endif
+    float chunk_pos[3];
     for( int i= 0; i< (int)level->GetLandscape()->SizeX() / QUADS_PER_CHUNK; i++ )
         for( int j= 0; j< (int)level->GetLandscape()->SizeY() / QUADS_PER_CHUNK; j++ )
         {
-           // chunk_pos[0]= float( i * QUADS_PER_CHUNK + QUADS_PER_CHUNK/2 );
-            //chunk_pos[1]= float( j * QUADS_PER_CHUNK + QUADS_PER_CHUNK/2 );
-            //chunk_pos[2]= 0.0f;
-            //if( IsObjectBehindPlayer( chunk_pos, float(QUADS_PER_CHUNK) ) )
-             //   continue;
 
             position_shift[0]= float( i * QUADS_PER_CHUNK );
             position_shift[1]= float( j * QUADS_PER_CHUNK );
+
+            chunk_pos[0]= position_shift[0] + float(QUADS_PER_CHUNK/2);
+            chunk_pos[1]= position_shift[1] + float(QUADS_PER_CHUNK/2);
+            chunk_pos[2]= level->GetLandscape()->Height( chunk_pos[0], chunk_pos[1] );
+            if( IsObjectBehindPlayer( chunk_pos, 96.0f ) )
+                continue;
             landscape_shader.UniformVec3( 1, position_shift );
 
             unsigned int lod;
@@ -407,17 +457,45 @@ void Renderer::DrawLandscape()
             else 
                lod= 4;
             glDrawElements( GL_TRIANGLES, ind_count[lod], GL_UNSIGNED_SHORT, (void*)(lod_shift[lod]* sizeof(short)) );
+#ifdef MW_DEBUG
             triangle_count+= ind_count[lod]/3;
+            chunk_count++;
+#endif
         }
      
+#ifdef MW_DEBUG
     char str[64];
     sprintf( str, "Triangles: %d", triangle_count );
     text.AddText( 0, 1, 1, Text::default_color, str );
+    sprintf( str, "Chunks: %d", chunk_count );
+    text.AddText( 0, 2, 1, Text::default_color, str );
+#endif
 
     //glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+}
 
+void Renderer::DrawWater()
+{
+    water_texture->Bind(0);
 
+    glBlendFunc( GL_ONE, GL_ONE_MINUS_SRC_ALPHA );
+    glEnable( GL_BLEND );
+    landscape_vbo.Bind();
 
+    water_shader.Bind();
+    water_shader.UniformMat4( 0, view_matrix );
+    water_shader.UniformFloat( 1, level->GetLandscape()->WaterLevel() );
+    float cam_pos[]= { player->Position()[0], player->Position()[1], player->Position()[2] + PLAYER_HEIGHT };
+    water_shader.UniformVec3( 2, cam_pos );
+    float sun[]= { sun_vector[0], sun_vector[1], sun_vector[2] };
+    Vec3Normalize(sun);
+    water_shader.UniformVec3( 3, sun );
+    water_shader.UniformInt( 4, 0 );//texture
+    water_shader.UniformFloat( 5, float(MainLoop::CurrentTime())/float(CLOCKS_PER_SEC ) );
+
+    glDrawArrays( GL_TRIANGLES, (QUADS_PER_CHUNK + 1 )* (QUADS_PER_CHUNK + 1 ) * 2 - 6, 6 );
+
+    glDisable( GL_BLEND );
 }
 
 void Renderer::GenLandscapeMesh()
@@ -495,6 +573,21 @@ void Renderer::GenLandscapeMesh()
         quads_per_chunk>>=1;
     }
 
+    //last quad 
+    v= landscape_vertices + (QUADS_PER_CHUNK + 1 )* (QUADS_PER_CHUNK + 1 ) * 2 - 6;
+    v[0].pos[0]= 0;
+    v[0].pos[1]= 0;
+    v[1].pos[0]= 1024;
+    v[1].pos[1]= 0;
+    v[2].pos[0]= 1024;
+    v[2].pos[1]= 1024;
+
+    v[3].pos[0]= 0;
+    v[3].pos[1]= 0;
+    v[4].pos[0]= 0;
+    v[4].pos[1]= 1024;
+    v[5].pos[0]= 1024;
+    v[5].pos[1]= 1024;
 }
 
 
@@ -533,12 +626,17 @@ void Renderer::DrawMonsters()
     float m_t[16], m_r[16], m[16];
     Mat4Identity( m_t );
 
+#ifdef MW_DEBUG
+    unsigned int monster_count = 0;
+#endif
     for( unsigned int i= 0; i< level->MonsterCount(); i++ )
     {
         const Monster* monster= level->GetMonster(i);
         const float* pos= monster->Position();
         unsigned char monster_id= monster->MonsterId();
 
+        if( IsObjectBehindPlayer( pos, 8.0f ) )
+            continue;
         m_t[12]= pos[0];
         m_t[13]= pos[1];
         m_t[14]= pos[2];
@@ -551,7 +649,60 @@ void Renderer::DrawMonsters()
         Mat4ToMat3( m_r );
 
         DrawAnimatedModel( &monsters[monster_id], monster->ActiveAnimations(), monster->ActiveAnimationsTime(),
-            m, m_r ,monsters_vertex_shift[monster_id], monsters_index_shift[monster_id] );
+            m, m_r ,monsters_vertex_shift[monster_id], monsters_index_shift[monster_id],  &animated_models_shader );
+#ifdef MW_DEBUG
+        monster_count++;
+#endif
+    }
+    #ifdef MW_DEBUG
+    char str[64];
+    sprintf( str, "monsters: %d", monster_count );
+    text.AddText( 0, 4, 1, Text::default_color, str );
+#endif
+}
+
+void Renderer::DrawBullets()
+{
+    level_shader.Bind();
+    level_shader.UniformInt( 1, 1 );//texture 
+    level_vbo.Bind();
+
+    float m[16], mt[16], mr_xy[16], mr_z[16], m_n[16];
+    Mat4Identity( mt );
+    for( unsigned int i= 0; i< level->BulletCount(); i++ )
+    {
+        const Bullet* bullet= level->GetBullets() + i;
+        mt[12]= bullet->pos[0];
+        mt[13]= bullet->pos[1];
+        mt[14]= bullet->pos[2];
+
+        Mat4Identity( mr_xy );
+        Mat4Identity( mr_z );
+       // mr_z[5]= 0.0f;
+        //mr_z[6]= -1.0f;
+       // mr_z[9]= 1.0f;
+       // mr_z[10]= 0.0f;
+        float a= Vec3ZAngle( bullet->vel ) - MW_PI2;
+        mr_z[5]= cos( a );
+        mr_z[6]= sin( a );
+        mr_z[9]= -mr_z[6];
+        mr_z[10]= mr_z[5];
+        Mat4RotateXY( mr_xy, Vec3XYAngle( bullet->vel ) - MW_PI2 );
+        Mat4Mul( mr_z, mr_xy, m );
+        memcpy( m_n, m, sizeof(float) * 16 );
+        Mat4Mul( m, mt );
+        Mat4Mul( m, view_matrix );
+
+        float sun[3];
+        Mat4Transpose( m_n );
+        Vec3Mat4Mul( sun_vector, m_n, sun );
+        level_shader.UniformMat4( 0, m );
+        level_shader.UniformVec3(2, sun );
+
+        unsigned int k= STATIC_OBJECTS + BULLET_ROCKET + bullet->bullet_type;
+         glDrawElementsBaseVertex( GL_TRIANGLES, static_objects[k].index_count, GL_UNSIGNED_SHORT,
+            (void*) (model_index_shift[k] *sizeof(short) ), model_vertex_shift[k] );
+
     }
 }
 
@@ -570,12 +721,17 @@ void Renderer::DrawStaticModels()
     float sun[3];
     float vec2_object[3];
     float len;
+#ifdef MW_DEBUG
+    unsigned int models= 0;
+#endif
     for( unsigned int k= 0; k< STATIC_OBJECTS; k++ )
     {
         for( unsigned int i=0; i< level->ObjectCount(k); i++ )
         {
             const StaticObject* obj= level->GetStaticObject(k, i );
 
+            if( IsObjectBehindPlayer( obj->pos, 30.0f ) )
+                continue;
             vec2_object[0]= obj->pos[0];
             vec2_object[1]= obj->pos[1];
             vec2_object[2]= obj->pos[2];
@@ -588,7 +744,7 @@ void Renderer::DrawStaticModels()
             }
 
             if( len < 0.03125f && len >  0.00390625f )
-                if( k >= OBJECT_SMALL_HEALTHPACK && k<= OBJECT_MACHINEGUN )
+                if( OBJECT_IS_PICKUP(k) )
                 {
                         //draw glow around items
                     item_glow_vertices[item_sprite_count*4]= obj->pos[0];
@@ -616,31 +772,48 @@ void Renderer::DrawStaticModels()
             Vec3Mat4Mul( sun_vector, m_r, sun );
             level_shader.UniformVec3( 2, sun );
 
-            glDrawElementsBaseVertex( GL_TRIANGLES, static_objects[k].index_count, GL_UNSIGNED_SHORT,
-            (void*) (model_index_shift[k] *sizeof(short) ), model_vertex_shift[k] );
+            if( k == OBJECT_SPRUCE && Distance( obj->pos, player->Position() ) > 60.0f )
+            {
+                    int kk= STATIC_OBJECTS + BULLET_TYPE_COUNT;
+                    glDrawElementsBaseVertex( GL_TRIANGLES, static_objects[kk].index_count, GL_UNSIGNED_SHORT,
+                    (void*) (model_index_shift[kk] *sizeof(short) ), model_vertex_shift[kk] );
+            }
+            else
+                glDrawElementsBaseVertex( GL_TRIANGLES, static_objects[k].index_count, GL_UNSIGNED_SHORT,
+                (void*) (model_index_shift[k] *sizeof(short) ), model_vertex_shift[k] );
+#ifdef MW_DEBUG
+            models++;
+#endif
         }
     }
-    
+
+#ifdef MW_DEBUG
+    char str[64];
+    sprintf( str, "static models: %d", models );
+    text.AddText( 0, 3, 1, Text::default_color, str );
+#endif
 }
 
 void Renderer::DrawWeapon()
 {
-    animated_models_shader.Bind();
-    animated_models_shader.UniformVec3( 3, sun_vector );
+    weapon_shader.Bind();
+    weapon_shader.UniformVec3( 5, sun_vector );
+    weapon_shader.UniformInt( 2, 1 );
     level_vbo.Bind();
 
     float m[16], m_t[16], m_p[16], m_r[16], m_s[16], m_rz[16];
+  //  float to_global_m[16];
     float m_n[16];
 
-    Mat4Perspective( m_p, float(screen_x) / float(screen_y), 0.8f * 1.57f, 0.0625f, 8.0f  );
+    Mat4Perspective( m_p, float(screen_x) / float(screen_y), fov, 0.0625f, 8.0f  );
     Mat4Identity( m_t );
     Mat4Identity( m_s );
     Mat4Identity( m_rz );
 
 
-    m_t[12]= 0.8f;
-    m_t[13]= -0.9f;
-    m_t[14]= -1.6f;//move weapon forward ( from camera )
+    m_t[12]= 1.0f;
+    m_t[13]= -1.1f;
+    m_t[14]= -1.8f;//move weapon forward ( from camera )
 
     m_rz[5]= cos( -MW_PI2 );
     m_rz[6]= sin( -MW_PI2 );
@@ -651,21 +824,28 @@ void Renderer::DrawWeapon()
  
     Mat4Mul( m_r, m_rz, m );
     Mat4Mul( m, m_t );
+   // Mat4Mul( m, inv_view_matrix, to_global_m );
     Mat4Mul( m, m_p );
-    m[14]= -0.99f;//compress z coordinate of result vertices ( in screen space )
 
     //calculate normal matrix
     Mat4ToMat3( m_rz );
     Mat3Mul( m_rz, inv_view_normal_matrix, m_n );
 
+   // weapon_shader.Bind();
+    weapon_shader.UniformMat4( 4, m );
+    weapon_shader.UniformMat4( 3, inv_view_matrix );
+    Mat4Identity(m);
+
+
+    glDepthRange( 0.0f, 0.1f );
 
     unsigned char weapon_id= player->CurrentWeapon() + OBJECT_SHOVEL;
     bool anim_active[]= { player->WeaponAnimationIsActive(), false, false, false };
     float anim_time[]= { player->WeaponAnimationTime(), 0.0f, 0.0f, 0.0f };
     DrawAnimatedModel( &static_objects[weapon_id], anim_active, anim_time,
-           m, m_n , model_vertex_shift[weapon_id], model_index_shift[weapon_id] );
+           m, m_n , model_vertex_shift[weapon_id], model_index_shift[weapon_id], &weapon_shader );
 
-  
+    glDepthRange( 0.0f, 1.0f );
 }
 
 void Renderer::DrawItemGlow()
@@ -686,11 +866,34 @@ void Renderer::DrawItemGlow()
     glDrawArrays( GL_POINTS, 0, item_sprite_count );
 
     item_sprite_count= 0;
+
+    glDisable( GL_BLEND );
 }
 
+void Renderer::DrawParticles()
+{
+    glEnable( GL_BLEND );
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+
+    glActiveTexture( GL_TEXTURE0 );
+    glBindTexture( GL_TEXTURE_2D_ARRAY, particles_texture_array );
+
+    particle_shader.Bind();
+    particle_shader.UniformMat4( 0, view_matrix );
+    particle_shader.UniformInt( 1, 0 );//texture
+
+    particles_vbo.Bind();
+    unsigned int p_count= level->GetParticleManager()->ParticleCount();
+    particles_vbo.VertexSubData( level->GetParticleManager()->GetPositionBuffer(), 
+                                p_count * 4 * sizeof(float), 0 );
+
+    glDrawArrays( GL_POINTS, 0, p_count );
+
+    glDisable( GL_BLEND );
+}
 
 void Renderer::DrawAnimatedModel( const Model* m, const bool* active_animations, const float* animation_time,
-                  const float* v_matrix, const float* n_matrix, unsigned int v_shift, unsigned int i_shift  )
+                  const float* v_matrix, const float* n_matrix, unsigned int v_shift, unsigned int i_shift, GLSLProgram* shader  )
 {
     float vertex_matrices[16*MAX_MODEL_BONES];
     float normal_matrices[9*MAX_MODEL_BONES];
@@ -724,8 +927,8 @@ void Renderer::DrawAnimatedModel( const Model* m, const bool* active_animations,
         }
     }
 
-    animated_models_shader.UniformMat4Array( 1, MAX_MODEL_BONES, vertex_matrices );
-    animated_models_shader.UniformMat3Array( 0, MAX_MODEL_BONES, normal_matrices );
+    shader->UniformMat4Array( 1, MAX_MODEL_BONES, vertex_matrices );
+    shader->UniformMat3Array( 0, MAX_MODEL_BONES, normal_matrices );
 
     glDrawElementsBaseVertex( GL_TRIANGLES, m->index_count, GL_UNSIGNED_SHORT,
         (void*)(i_shift*sizeof(short)), v_shift );
@@ -756,23 +959,43 @@ void Renderer::DrawAnimatedModel( const Model* m, const bool* active_animations,
    
 }*/
 
-void Renderer::DrawFirstFrame()
+
+void Renderer::DrawLoading( unsigned int stage )
 {
+    static const char* strings[]= {
+        "Generate terrain shadowmap...",
+        "Compile shaders...",
+        "Generate models...",
+        "Generate textures...", "Ready!" };
+
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
     text.AddText( 1, 2, 2, Text::default_color, "MicroW - 64k shooter" );
     text.AddText( 1, 3, 1, Text::default_color, "by \"Panzerschrek\"" );
 
-    text.AddText( screen_x/LETTER_WIDTH/2, screen_y/LETTER_HEIGHT/2, 1, Text::default_color, "Loading..." );
+    text.AddText( screen_x/LETTER_WIDTH/2, screen_y/LETTER_HEIGHT/2, 1, Text::default_color, strings[ stage ] );
 
     glDisable(GL_DEPTH_TEST);
     text.Draw();
     glEnable(GL_DEPTH_TEST);
+
+    MainLoop::SwapBuffers();
 }
 
+void Renderer::DrawDeathScreen()
+{
+    unsigned int x=screen_x / LETTER_WIDTH/2 - 7,
+        y= screen_y / LETTER_HEIGHT/2 + 4;
+    text.AddText( x, y, 2, Text::default_color, "You Die" );
+    char str[32];
+    sprintf( str, "Score: %d", player->Score() );
+    text.AddText( x-2, y+2, 2, Text::default_color, str );
+}
 
 void Renderer::DrawGUI()
 {
     char str[128];
-    sprintf( str, "Player: %5.2f %5.2f %5.2f", player->Position()[0], player->Position()[1], player->Position()[2] );
+    /*sprintf( str, "Player: %5.2f %5.2f %5.2f", player->Position()[0], player->Position()[1], player->Position()[2] );
     text.AddText( 0, 7, 1, Text::default_color, str );
     sprintf( str, "on surface: %d\n", player->OnSurface() );
     text.AddText( 0, 8, 1, Text::default_color, str );
@@ -780,22 +1003,41 @@ void Renderer::DrawGUI()
     text.AddText( 0, 9, 1, Text::default_color, str );
 
     sprintf( str, "Angle xy:%1.3f z:%1.3f", player->AngXY(), player->AngZ() );
-    text.AddText( 0, 10, 1, Text::default_color, str );
+    text.AddText( 0, 10, 1, Text::default_color, str );*/
 
-    sprintf( str, "Health: %3d", player->Health() );
     unsigned int x, y;
-    x= screen_x / LETTER_WIDTH - 13;
-    y= screen_y / LETTER_HEIGHT - 3;
-     text.AddText( x, y, 1, Text::default_color, str );
+    x= screen_x / LETTER_WIDTH - 17;
+    y= screen_y / LETTER_HEIGHT - 4;
 
-      y++;
-       sprintf( str, "Ammo: %3d", player->Ammo() );
-        text.AddText( x, y, 1, Text::default_color, str );
+    sprintf( str, "Score: %d", player->Score() );
+    text.AddText( 1, y, 1, Text::default_color, str );
+	sprintf( str, "Round: %d", level->Wave() + 1);
+	text.AddText( 1, y+1, 1, Text::default_color, str );
 
-     //text.AddText( screen_x/LETTER_WIDTH/2 - 1, screen_y/LETTER_HEIGHT/2, 1, Text::default_color, "-^-" );//cross
-     text.DrawCross();
+    if( player->AmmoType() != AMMO_NOAMMO )
+    {
+        sprintf( str, "Ammo: %3d", player->Ammo() );
+        text.AddText( x+4, y, 1, Text::default_color, str );
+    }
+    else
+        text.AddText( x+4, y, 1, Text::default_color, "Ammo: inf." );
+    y+=2;
 
-       glDisable(GL_DEPTH_TEST);
+    static unsigned char hc[]= { 
+        255, 32, 32, 32,
+        255, 255, 32, 32,
+        255, 255, 255, 32 };
+    text.AddText( x, y, 1, Text::default_color, "Health: " );
+    unsigned char* color;
+    if( player->Health() <= 35 ) color= hc;
+    else if( player->Health() <= 75 )color= hc+4;
+    else color= hc+8; 
+    sprintf( str, "%d", player->Health() );
+    text.AddText( x+8, y, 1 + (int)(player->Health()<45), color, str );
+
+    text.DrawCross();
+
+    glDisable(GL_DEPTH_TEST);
     text.Draw();
     glEnable(GL_DEPTH_TEST);
 }
@@ -811,14 +1053,45 @@ void Renderer::DrawSky()
     m[14]= player->Position()[2] - PLAYER_HEIGHT + 0.2f;
     Mat4Mul(m,view_matrix);
 
+    cloud_texture->Bind(0);
+
     sky_shader.Bind();
     sky_shader.UniformMat4( 0,m );
+    sky_shader.UniformInt( 2, 0 );
+    float cloud_shift[]= { 0.005f * float(MainLoop::CurrentTime())/float( CLOCKS_PER_SEC), 0.0f, 0.0f };
+    cloud_shift[1]= cloud_shift[0] * 0.25f;
+    sky_shader.UniformVec3( 3, cloud_shift );
+
+    float sun[3]= { sun_vector[0], sun_vector[1], sun_vector[2] };
+    Vec3Normalize(sun);
+    sky_shader.UniformVec3( 1, sun );
 
 
-    //use model of large healthpack becouse it is a cube
-    int k= OBJECT_LARGE_HEALTHPACK;
+    //use model of medium healthpack becouse it is a shpere
+    int k= OBJECT_MEDIUM_HEALTHPACK;
     glDrawElementsBaseVertex( GL_TRIANGLES, static_objects[k].index_count, GL_UNSIGNED_SHORT,
             (void*) (model_index_shift[k] *sizeof(short) ), model_vertex_shift[k] );
+}
+
+void Renderer::DrawBlood()
+{
+    if( player->BloodFactor() < 0.01f )
+        return;
+
+    glEnable( GL_BLEND );
+    glDisable( GL_DEPTH_TEST );
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+
+    blood_texture->Bind(0);
+
+    blood_shader.Bind();
+    blood_shader.UniformFloat( 0, player->BloodFactor() );
+    blood_shader.UniformInt( 1, 0 );
+
+    glDrawArrays( GL_TRIANGLES, 0, 6 );
+
+    glDisable( GL_BLEND );
+    glEnable( GL_DEPTH_TEST );
 }
 
 void Renderer::Draw()
@@ -832,16 +1105,22 @@ void Renderer::Draw()
     glDisable( GL_CULL_FACE );
     DrawSky();
     DrawStaticModels();
-    DrawWeapon();
+    DrawBullets();
+    if( player->Health() > 0 )
+        DrawWeapon();
+
     DrawMonsters();
+
+    DrawWater();
     DrawItemGlow();
+    DrawParticles();
+    DrawBlood();
 
 
-    
-    CalculateFPS();
-
+    if( player->Health() <= 0 )
+        DrawDeathScreen();
     DrawGUI();
-
+    CalculateFPS();
 }
 
 

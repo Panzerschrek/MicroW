@@ -9,12 +9,19 @@
 //#include <MMSystem.h>
 //#pragma comment(lib,"winmm.lib")
 
+#ifdef MW_OS_WINDOWS
+int WINAPI WinMain(HINSTANCE hInstance,
+                   HINSTANCE hPrevInstance,
+                   LPSTR lpCmdLine,
+                   int nCmdShow)
+#else
 int main()
+#endif
 {
-  //  mciSendString("play serious_sam3.mid",NULL,0,0);
+    SetFloatingPointRoundingToTruncate();
+  //  mciSendString("play midi/god_sight.mid",NULL,0,0);
   //  Sleep(1000);
-  //  mciSendString( "pause serious_sam3.mid",NULL,0,0 );
-  
+
     Level* level= new Level();
     Player* player= new Player(level);
     level->SetPlayer( player );
@@ -25,9 +32,7 @@ int main()
     main_loop->SetSoundSystem( sound_system );
     level->SetSoundSystem( sound_system );
 
-    
-    float v[]= { -5.0f, 3.0f, 0.0f };
-    printf( "angle %f\n", Vec3XYAngle(v) * 180.0f / MW_PI );
+   
 	while(1)
 		main_loop->Loop();
 }

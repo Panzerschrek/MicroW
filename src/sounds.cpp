@@ -7,6 +7,7 @@
  212, 34, 138, 89, 4, 5, 32, 230, 1, 0, 21, 30, 139, 108, 0, 132, 27, 66, 86, 4, 50, 25, 234, 124, 0, 130, 24, 174, 110, 0, 217, 23,
  8, 176, 0, 143, 21, 41, 83, 4, 141, 21, 212, 98, 0, 23, 20, 217, 60, 4, 104, 19, 153, 91, 4, 232, 18, 202, 64, 4, 168, 18, 218, 101,
  0, 145, 18, 166, 115, 0, 245, 17, 63, 114, 0, 124, 17, 7, 2, 0, 3, 17, 203, 65, 4, 182, 16, 247 };
+
   unsigned char chaingun_sound[]= {
  16,
  191, 3, 100, 167, 149, 195, 3, 152, 120, 103, 106, 0, 32, 70, 74, 188, 3, 183, 47, 136, 198, 3, 51, 45, 117, 24, 7, 8, 36, 156, 131, 7,
@@ -28,7 +29,7 @@
  178, 36, 138, 251, 3, 151, 36, 205, 11, 3, 187, 34, 157, 131, 3, 85, 34, 202, 179, 0, 89, 29, 25, 207, 2, 48, 28, 109, 27, 2, 50, 27,
  161, 234, 0, 157, 26, 161, 59, 0, 19, 26, 174, 87, 2, 30, 22, 207 };
 
-  unsigned char quad_sound[]={
+unsigned char quad_sound[]={
       32,
  53, 0, 92, 37, 104, 136, 3, 161, 33, 238, 182, 4, 233, 31, 217, 154, 5, 49, 29, 200, 167, 2, 35, 29, 65, 236, 3, 101, 25, 230, 135, 3,
  55, 25, 113, 11, 2, 143, 24, 30, 14, 2, 48, 24, 179, 238, 3, 93, 23, 28, 76, 5, 246, 22, 104, 91, 0, 14, 22, 198, 169, 2, 5, 20,
@@ -153,6 +154,31 @@ unsigned int GenBlasterShot( short** data )
     return 7350;
 }
 
+unsigned int GenRocketShot( short** data )
+{
+    short* d= new short[ 7350 ];
+
+    float a, x;
+    float f = 800.0f, df= -300.0f / 7350.0f;
+    
+    for( int i= 0; i< 7350; i++, f+=df )
+    {
+        int y= FinalNoise(i*4);
+        y=y * FinalNoise(i>>4) / 32768;
+
+
+        a=    MW_2PI * float(i)/float(22050);
+               
+        x= 16384.0f* cos( a * f );
+        d[i]= short(x) *y/32768;// FinalNoise(i*21,4)/32768;
+
+    }
+    
+    SmoothSound( d, 7350 );
+    *data= d;
+    return 7350;
+}
+
 unsigned int GenFootStep( short** data )
 {
      short* d= new short[ 4410 ];
@@ -165,16 +191,36 @@ unsigned int GenFootStep( short** data )
      return 4410;
 }
 
+unsigned int GenBlast( short** data )
+{
+	short* d= new short[ 44100 ];
+	float a= 0.0f;
+	float t= 0.1f;
+	for( int i= 0; i< 44100; i++ )
+	{
+		a= a * ( 1.0f - t ) +  randf(-4.5f,4.5f) * t;
+		if( a > 1.0f ) a= 1.0f;
+		else if( a < -1.0f ) a= -1.0f;
+		d[i]= short(a*32767.0f*0.5f);
+		t*= 0.9997f;
+	 }
+
+	*data= d;
+	SmoothSound( d, 44100 );
+	return 44100;
+}
+
+
 unsigned int GenPistolShot(  short** data )
 {
      short* d= new short[ 22050 ];
-       float a= 0.6f;
+       float a= 0.8f;
      float e= 0.9998f;
      for( unsigned int i= 0; i< 22050; i++ )
      {
          unsigned int j= i&0xfffffffc;
         // d[i]= short( a* ( 0.5f * AbsoluteNoise(j, 1) + 0.8f * AbsoluteNoise(j*2, 2) + AbsoluteNoise(j*3, 3) ) )/2; 
-         d[i]= short( float( (FinalNoise(i*35, 4) + FinalNoise(i*47, 3)) )*a );
+         d[i]= short( float( (FinalNoise(i*35, 4) + FinalNoise(i*47, 3) ) )*a );
          a*= e;
      }
      *data= d;
@@ -211,7 +257,7 @@ unsigned int GenShovelHit( short** data )
         a=    MW_2PI * float(i)/float(22050);       
         x= 0.0f;
         for( unsigned int k=0; k< crowbar_sound[0]; k++ )
-            x+= float(h[k].amplitude) * cos( a * float( h[k].freq ) + float(h[k].phase) * MW_2PI );
+            x+= float(h[k].amplitude) * cos( a * float( h[k].freq ) + float(h[k].phase) * MW_2PI / 255.0f );
          x*= 0.25f;
 
         if( x > 32767.0f ) x= 32767.0f;
@@ -224,4 +270,4 @@ unsigned int GenShovelHit( short** data )
     return 7350;
 }
 
-unsigned int (*SoundGenFunc[])( short**)= { GenShovelHit, /*GenBlasterShot*/GenPistolShot, GenBlasterShot };
+unsigned int (*SoundGenFunc[])( short**)= { GenShovelHit, GenPistolShot, GenBlasterShot, GenRocketShot, GenBlast };

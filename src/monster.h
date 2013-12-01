@@ -2,6 +2,7 @@
 #define MONSTER_H
 
 #include "model.h"
+#include "game_constants.h"
 
 class Level;
 class Player;
@@ -18,17 +19,22 @@ public:
     float AngleXY() const;
     unsigned char MonsterId()const;
 
-    void Tick( float dt );
+    void Tick();
     bool IsCollision( const float* pos, const float* vec, float* collision_pos );
 
     const bool* ActiveAnimations() const;
     const float* ActiveAnimationsTime() const;
 
+    void SetPosition( const float* p );
 private:
 
-    void Attack();
+    bool MeleeAttack();
+    bool RemoteAttack();
     void AttackTick();
     void SelectTarget();
+    void TurnToPlayer();
+    void Move();
+    void Shot();
 
     Level* level;
     Player* player;
@@ -38,14 +44,18 @@ private:
     float target_pos[3];
     float angle_xy, angle_z;
 
+    MonsterDescriptor* md;
     unsigned char monster_id;
+    unsigned char monster_state;
     unsigned int last_attack_time;
     unsigned int last_target_select_time;
 
     bool playable_animations[ANIMATION_KIND];//true if animation active
     float playable_animations_time[ANIMATION_KIND];//time ( from 0.0f ) of current animations
 
+
     bool in_melee_attack;
+    bool in_remote_attack;
     bool alrady_caused_damage;
 };
 
